@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { gzipSync } from 'node:zlib';
 
+import { ProtobufEncoder } from '../protocol/protobuf.js';
 import { convertResponse } from './response-converter.js';
 
 type TestContent =
@@ -46,5 +48,43 @@ describe('convertResponse', () => {
 
     expect(result.every((part) => part.type === 'text')).toBe(true);
     expect(combinedText).toBe(input);
+  });
+
+  it('protobuf payload - extracts clean utf8 text without binary mojibake prefix', () => {
+    const payload = new ProtobufEncoder();
+    payload.writeVarint(1, 150);
+    payload.writeString(2, '你好，TypeScript');
+
+    const result: TestContent[] = convertResponse(payload.toBuffer());
+
+    expect(result).toEqual([{ type: 'text', text: '你好，TypeScript' }]);
+  });
+
+  it('protobuf payload - still parses tool-call markers from extracted strings', () => {
+    const payload = new ProtobufEncoder();
+    payload.writeVarint(1, 150);
+    payload.writeString(2, '[TOOL_CALLS]answer[ARGS]{"answer":"final answer"}');
+
+    const result: TestContent[] = convertResponse(payload.toBuffer());
+
+    expect(result).toEqual([{ type: 'text', text: 'final answer' }]);
+  });
+
+  it('protobuf payload - ignores metadata strings and keeps main text field', () => {
+    const payload = new ProtobufEncoder();
+    payload.writeString(1, 'meta');
+    payload.writeString(2, '你好，TypeScript');
+
+    const result: TestContent[] = convertResponse(payload.toBuffer());
+
+    expect(result).toEqual([{ type: 'text', text: '你好，TypeScript' }]);
+  });
+
+  it('gzip payload - decompresses before decoding text', () => {
+    const compressed = gzipSync(Buffer.from('hello from gzip', 'utf8'));
+
+    const result: TestContent[] = convertResponse(compressed);
+
+    expect(result).toEqual([{ type: 'text', text: 'hello from gzip' }]);
   });
 });

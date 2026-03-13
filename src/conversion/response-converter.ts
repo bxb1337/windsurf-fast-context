@@ -1,3 +1,6 @@
+import { gunzipSync } from 'node:zlib'
+import { extractStrings } from '../protocol/protobuf.js'
+
 export interface TextPart {
   type: 'text';
   text: string;
@@ -179,8 +182,67 @@ function parseJsonValue(value: string, startIndex: number): { parsed: unknown; e
   }
 }
 
+function hasControlChars(value: string): boolean {
+  for (const char of value) {
+    const code = char.charCodeAt(0)
+    if (code <= 8 || code === 11 || code === 12 || (code >= 14 && code <= 31)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function maybeGunzip(buffer: Buffer): Buffer {
+  if (buffer.length < 2) {
+    return buffer
+  }
+
+  if (buffer.readUInt8(0) !== 0x1f || buffer.readUInt8(1) !== 0x8b) {
+    return buffer
+  }
+
+  try {
+    return gunzipSync(buffer)
+  } catch {
+    return buffer
+  }
+}
+
+function isLikelyMetadata(value: string): boolean {
+  return /^[A-Za-z0-9._:-]{1,32}$/.test(value)
+}
+
+function pickBestExtractedText(values: string[]): string {
+  const markerValues = values.filter((value) => value.includes(TOOL_CALL_PREFIX) || value.includes(ARGS_PREFIX))
+  if (markerValues.length > 0) {
+    return markerValues.join('')
+  }
+
+  const nonMetadata = values.filter((value) => !isLikelyMetadata(value))
+  const candidates = nonMetadata.length > 0 ? nonMetadata : values
+
+  return candidates.reduce((best, current) => (current.length > best.length ? current : best), candidates[0] ?? '')
+}
+
+function decodeResponseText(buffer: Buffer): string {
+  const source = maybeGunzip(buffer)
+  const raw = source.toString('utf8')
+  if (!hasControlChars(raw) && !raw.includes('\ufffd')) {
+    return raw
+  }
+
+  const extracted = extractStrings(source).filter((value) => value.length > 0 && !hasControlChars(value))
+
+  if (extracted.length === 0) {
+    return raw
+  }
+
+  return pickBestExtractedText(extracted)
+}
+
 export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
-  const responseText = buffer.toString('utf8');
+  const responseText = decodeResponseText(buffer)
   const parts: LanguageModelV3Content[] = [];
   let cursor = 0;
   let toolCallCount = 0;
