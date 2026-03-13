@@ -1,3 +1,0 @@
-RESULTS: 52/52 passing
-FAILURES: none
-EXIT=0

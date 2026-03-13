@@ -1,6 +1,0 @@
--rw-r--r-- 1 bxb1337 bxb1337 77 Mar 13 13:47 dist/cjs/index.js
--rw-r--r-- 1 bxb1337 bxb1337 11 Mar 13 13:47 dist/esm/index.js
--rw-r--r-- 1 bxb1337 bxb1337 71 Mar 13 13:47 dist/index.cjs
--rw-r--r-- 1 bxb1337 bxb1337 11 Mar 13 13:47 dist/index.d.ts
--rw-r--r-- 1 bxb1337 bxb1337 32 Mar 13 13:47 dist/index.js
-EXIT=0

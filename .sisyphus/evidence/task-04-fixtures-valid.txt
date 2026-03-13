@@ -1,5 +1,0 @@
-Verification:
-test/fixtures/connect/connect-msg-1.bin: flags=0 len=13 payload="CONNECThello" expected="CONNECThello" ok=true
-test/fixtures/connect/connect-msg-2.bin: flags=0 len=13 payload="CONNECTworld" expected="CONNECTworld" ok=true
-
-EXIT=0
