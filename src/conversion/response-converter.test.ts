@@ -103,7 +103,7 @@ describe('convertResponse', () => {
   it('strips empty TOOL_CALLS markers with whitespace', () => {
     const input = 'Text TOOL_CALLS2{   } more text';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Text  more text' }]);
+    expect(result).toEqual([{ type: 'text', text: 'Text more text' }]);
   });
 
   it('strips standalone stop token', () => {
@@ -115,6 +115,115 @@ describe('convertResponse', () => {
   it('handles TOOL_CALLS with number prefix before stop token', () => {
     const input = 'Text before TOOL_CALLS1</s>{} text after';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Text before  text after' }]);
+    expect(result).toEqual([{ type: 'text', text: 'Text before text after' }]);
+  });
+
+  it('strips TOOL_CALLS with double empty braces', () => {
+    const input = 'Hello world TOOL_CALLS1{}{}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: 'Hello world ' }]);
+  });
+
+  it('strips TOOL_CALLS with triple empty braces', () => {
+    const input = 'Response TOOL_CALLS2{}{}{} end';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: 'Response end' }]);
+  });
+
+  it('strips TOOL_CALLS with stop token and multiple braces', () => {
+    const input = 'Text TOOL_CALLS0</s>{}{} more text';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: 'Text more text' }]);
+  });
+
+  it('handles empty marker followed by real tool call', () => {
+    const input = 'TOOL_CALLS0{} [TOOL_CALLS]searchDocs[ARGS]{"query":"test"}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'searchDocs',
+        args: { query: 'test' },
+      },
+    ]);
+  });
+
+  it('handles real tool call followed by empty marker', () => {
+    const input = '[TOOL_CALLS]searchDocs[ARGS]{"query":"test"} TOOL_CALLS1{} done';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'searchDocs',
+        args: { query: 'test' },
+      },
+      { type: 'text', text: ' done' },
+    ]);
+  });
+
+  it('handles empty marker adjacent to real tool call', () => {
+    const input = 'TOOL_CALLS0{}[TOOL_CALLS]answer[ARGS]{"answer":"result"}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: 'result' }]);
+  });
+
+  it('parses OpenAI-style TOOL_CALLS with numeric IDs', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":3,"parameters":{"file_path":"/home/test","search_pattern":"binance"}}}{}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'grep',
+        args: { file_path: '/home/test', search_pattern: 'binance' },
+      },
+    ]);
+  });
+
+  it('parses multiple OpenAI-style tool calls', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":1,"parameters":{"file_path":"/home/test"}}}, {"type":"function","function":{"name":2,"parameters":{"pattern":"*.ts"}}}{}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'read',
+        args: { file_path: '/home/test' },
+      },
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_2',
+        toolName: 'glob',
+        args: { pattern: '*.ts' },
+      },
+    ]);
+  });
+
+  it('maps unknown tool IDs to tool_N format', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":99,"parameters":{"arg":"value"}}}{}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'tool_99',
+        args: { arg: 'value' },
+      },
+    ]);
+  });
+
+  it('handles OpenAI-style with string tool names', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":"custom_tool","parameters":{"key":"value"}}}{}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'custom_tool',
+        args: { key: 'value' },
+      },
+    ]);
   });
 });

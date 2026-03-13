@@ -18,7 +18,92 @@ export type LanguageModelV3Content = TextPart | ToolCallPart;
 const TOOL_CALL_PREFIX = '[TOOL_CALLS]';
 const ARGS_PREFIX = '[ARGS]';
 const STOP_TOKEN = '</s>';
-const EMPTY_TOOL_CALLS_PATTERN = /TOOL_CALLS\d*(?:<\/s>)?\s*\{\s*\}/g;
+
+const EMPTY_TOOL_CALLS_PATTERN = /TOOL_CALLS\d*(?:<\/s>)?\s*(?:\{\s*\}\s*)+/g;
+
+// OpenAI-style TOOL_CALLS format: TOOL_CALLS{"type":"function","function":{"name":3,...}}{}...
+const OPENAI_TOOL_CALLS_PATTERN = /^TOOL_CALLS(\{[\s\S]*\}\s*)+\s*$/;
+
+interface OpenAIToolCall {
+  type: 'function';
+  function: {
+    name: number | string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+  };
+}
+
+function parseOpenAIToolCalls(responseText: string): LanguageModelV3Content[] | null {
+  if (!responseText.startsWith('TOOL_CALLS')) {
+    return null;
+  }
+
+  const jsonPart = responseText.slice('TOOL_CALLS'.length);
+  if (!jsonPart.startsWith('{')) {
+    return null;
+  }
+
+  const toolCalls: OpenAIToolCall[] = [];
+  let cursor = 0;
+
+  while (cursor < jsonPart.length) {
+    if (jsonPart[cursor] !== '{') {
+      cursor++;
+      continue;
+    }
+
+    const endResult = parseBalancedEnd(jsonPart, cursor);
+    if (endResult == null) {
+      break;
+    }
+
+    const jsonStr = jsonPart.slice(cursor, endResult);
+    cursor = endResult;
+
+    if (jsonStr === '{}') {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonStr) as OpenAIToolCall;
+      if (parsed.type === 'function' && parsed.function) {
+        toolCalls.push(parsed);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  if (toolCalls.length === 0) {
+    return null;
+  }
+
+  return toolCalls.map((call, index) => {
+    const toolId = call.function.name;
+    const toolName = typeof toolId === 'number' ? mapToolIdToName(toolId) : String(toolId);
+    const args = call.function.parameters ?? {};
+
+    return {
+      type: 'tool-call' as const,
+      toolCallId: `toolcall_${index + 1}`,
+      toolName,
+      args,
+    };
+  });
+}
+
+function mapToolIdToName(id: number): string {
+  switch (id) {
+    case 1:
+      return 'read';
+    case 2:
+      return 'glob';
+    case 3:
+      return 'grep';
+    default:
+      return `tool_${id}`;
+  }
+}
 
 function pushText(parts: LanguageModelV3Content[], text: string): void {
   if (text.length > 0) {
@@ -248,6 +333,11 @@ export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
   
   responseText = responseText.replace(EMPTY_TOOL_CALLS_PATTERN, '')
   responseText = responseText.replace(STOP_TOKEN, '')
+
+  const openaiToolCalls = parseOpenAIToolCalls(responseText);
+  if (openaiToolCalls) {
+    return openaiToolCalls;
+  }
   
   const parts: LanguageModelV3Content[] = [];
   let cursor = 0;
