@@ -34,7 +34,7 @@ export type LanguageModelV3Prompt = Array<
             type: 'tool-call';
             toolCallId: string;
             toolName: string;
-            args: unknown;
+            input: unknown;
           }
         | {
             type: 'file';
@@ -104,7 +104,7 @@ export function convertPrompt(prompt: LanguageModelV3Prompt): DevstralMessage[] 
             metadata: {
               toolCallId: part.toolCallId,
               toolName: part.toolName,
-              toolArgsJson: JSON.stringify(part.args),
+              toolArgsJson: JSON.stringify(part.input),
             },
           });
         }

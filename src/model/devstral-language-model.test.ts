@@ -251,7 +251,7 @@ describe('DevstralLanguageModel doGenerate', () => {
         toolCallType: 'function',
         toolCallId: 'toolcall_1',
         toolName: 'searchRepo',
-        args: '{"query":"jwt manager"}',
+        input: { query: 'jwt manager' },
       },
     ])
 
@@ -447,7 +447,7 @@ describe('DevstralLanguageModel doStream', () => {
       toolCallType: 'function',
       toolCallId: 'toolcall_1',
       toolName: 'searchRepo',
-      args: '{"query":"jwt manager"}',
+      input: { query: 'jwt manager' },
     })
   })
 

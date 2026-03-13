@@ -6,7 +6,7 @@ import { convertResponse } from './response-converter.js';
 
 type TestContent =
   | { type: 'text'; text: string }
-  | { type: 'tool-call'; toolCallId: string; toolName: string; args: unknown };
+  | { type: 'tool-call'; toolCallId: string; toolName: string; input: unknown };
 
 describe('convertResponse', () => {
   it('text - returns plain text part for plain response', () => {
@@ -27,7 +27,7 @@ describe('convertResponse', () => {
         type: 'tool-call',
         toolCallId: 'toolcall_1',
         toolName: 'searchDocs',
-        args: { query: 'prompt converter' },
+        input: { query: 'prompt converter' },
       },
       { type: 'text', text: ' between ' },
       { type: 'text', text: 'final answer' },
@@ -144,7 +144,7 @@ describe('convertResponse', () => {
         type: 'tool-call',
         toolCallId: 'toolcall_1',
         toolName: 'searchDocs',
-        args: { query: 'test' },
+        input: { query: 'test' },
       },
     ]);
   });
@@ -157,7 +157,7 @@ describe('convertResponse', () => {
         type: 'tool-call',
         toolCallId: 'toolcall_1',
         toolName: 'searchDocs',
-        args: { query: 'test' },
+        input: { query: 'test' },
       },
       { type: 'text', text: ' done' },
     ]);
@@ -177,7 +177,7 @@ describe('convertResponse', () => {
         type: 'tool-call',
         toolCallId: 'toolcall_1',
         toolName: 'grep',
-        args: { file_path: '/home/test', search_pattern: 'binance' },
+        input: { file_path: '/home/test', search_pattern: 'binance' },
       },
     ]);
   });
@@ -190,13 +190,13 @@ describe('convertResponse', () => {
         type: 'tool-call',
         toolCallId: 'toolcall_1',
         toolName: 'read',
-        args: { file_path: '/home/test' },
+        input: { file_path: '/home/test' },
       },
       {
         type: 'tool-call',
         toolCallId: 'toolcall_2',
         toolName: 'glob',
-        args: { pattern: '*.ts' },
+        input: { pattern: '*.ts' },
       },
     ]);
   });
@@ -209,7 +209,7 @@ describe('convertResponse', () => {
         type: 'tool-call',
         toolCallId: 'toolcall_1',
         toolName: 'tool_99',
-        args: { arg: 'value' },
+        input: { arg: 'value' },
       },
     ]);
   });
@@ -222,7 +222,7 @@ describe('convertResponse', () => {
         type: 'tool-call',
         toolCallId: 'toolcall_1',
         toolName: 'custom_tool',
-        args: { key: 'value' },
+        input: { key: 'value' },
       },
     ]);
   });

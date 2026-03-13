@@ -10,7 +10,7 @@ export interface ToolCallPart {
   type: 'tool-call';
   toolCallId: string;
   toolName: string;
-  args: unknown;
+  input: unknown;
 }
 
 export type LanguageModelV3Content = TextPart | ToolCallPart;
@@ -87,7 +87,7 @@ function parseOpenAIToolCalls(responseText: string): LanguageModelV3Content[] | 
       type: 'tool-call' as const,
       toolCallId: `toolcall_${index + 1}`,
       toolName,
-      args,
+      input: args,
     };
   });
 }
@@ -378,7 +378,7 @@ export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
         type: 'tool-call',
         toolCallId: `toolcall_${toolCallCount}`,
         toolName,
-        args: parsedArgs.parsed,
+        input: parsedArgs.parsed,
       });
     }
 

@@ -11,7 +11,7 @@ type GeneratePart =
       type: 'tool-call'
       toolCallId: string
       toolName: string
-      args: string
+      input: unknown
       toolCallType: 'function'
     }
 
@@ -78,8 +78,7 @@ describe('integration tools', () => {
       expect(firstToolCall.toolCallType).toBe('function')
       expect(firstToolCall.toolCallId.length).toBeGreaterThan(0)
       expect(firstToolCall.toolName.length).toBeGreaterThan(0)
-      expect(firstToolCall.args.length).toBeGreaterThan(0)
-      expect(() => JSON.parse(firstToolCall.args)).not.toThrow()
+      expect(typeof firstToolCall.input).toBe('object')
     },
     90_000,
   )

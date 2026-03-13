@@ -60,7 +60,7 @@ interface LanguageModelV3ToolCallContent {
   toolCallType: 'function'
   toolCallId: string
   toolName: string
-  args: string
+  input: unknown
 }
 
 type GenerateContentPart =
@@ -297,7 +297,7 @@ export class DevstralLanguageModel {
                   safeEnqueue(controller, {
                     type: 'tool-input-delta',
                     toolCallId: part.toolCallId,
-                    delta: part.args,
+                    delta: JSON.stringify(part.input),
                   })
                   safeEnqueue(controller, {
                     type: 'tool-input-end',
@@ -436,7 +436,7 @@ function toV3Content(parts: LanguageModelV3Content[]): GenerateContentPart[] {
         toolCallType: 'function',
         toolCallId: part.toolCallId,
         toolName: part.toolName,
-        args: JSON.stringify(part.args),
+        input: part.input,
       }
     }
 

@@ -21,7 +21,7 @@ describe('convertPrompt', () => {
             type: 'tool-call',
             toolCallId: 'call_1',
             toolName: 'searchDocs',
-            args: { query: 'prompt converter', topK: 3 },
+            input: { query: 'prompt converter', topK: 3 },
           },
         ],
       },
@@ -56,7 +56,7 @@ describe('convertPrompt', () => {
         role: 'assistant',
         content: [
           { type: 'text', text: 'I will call a tool now.' },
-          { type: 'tool-call', toolCallId: 'call_2', toolName: 'searchDocs', args: { q: 'usage examples' } },
+          { type: 'tool-call', toolCallId: 'call_2', toolName: 'searchDocs', input: { q: 'usage examples' } },
         ],
       },
       {
