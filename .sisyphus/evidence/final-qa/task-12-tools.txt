@@ -1,0 +1,16 @@
+$ pnpm test src/model/devstral-language-model.test.ts -- --run -t "tools"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/model/devstral-language-model.test.ts -- --run -t tools
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/model/devstral-language-model.test.ts  (5 tests) 46ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  17:11:54
+   Duration  692ms (transform 69ms, setup 0ms, collect 74ms, tests 46ms, environment 0ms, prepare 228ms)
+
+EXIT=0

@@ -1,0 +1,16 @@
+$ pnpm test src/model/devstral-language-model.test.ts -- --run -t "abort"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/model/devstral-language-model.test.ts -- --run -t abort
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/model/devstral-language-model.test.ts  (5 tests) 46ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  17:11:57
+   Duration  684ms (transform 96ms, setup 0ms, collect 93ms, tests 46ms, environment 0ms, prepare 260ms)
+
+EXIT=0

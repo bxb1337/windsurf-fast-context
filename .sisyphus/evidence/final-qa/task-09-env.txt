@@ -1,0 +1,16 @@
+$ WINDSURF_API_KEY=test-key pnpm test src/auth/api-key.test.ts -- --run -t "env"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/auth/api-key.test.ts -- --run -t env
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/auth/api-key.test.ts  (3 tests) 2ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  17:11:47
+   Duration  563ms (transform 34ms, setup 0ms, collect 27ms, tests 2ms, environment 0ms, prepare 234ms)
+
+EXIT=0

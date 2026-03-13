@@ -1,0 +1,3 @@
+$ node --input-type=module -e 'import { createWindsurfProvider } from "./dist/index.js"; console.log(typeof createWindsurfProvider);'
+function
+EXIT=0

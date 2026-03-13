@@ -1,0 +1,21 @@
+
+> @your-org/windsurf-fast-context@0.0.0 build /home/bxb1337/js-projects/windsurf-fast-context
+> pnpm -s run build:types && pnpm -s run build:esm && pnpm -s run build:cjs && node ./scripts/postbuild.js
+
+EXIT=0
+auth/
+cjs/
+conversion/
+esm/
+model/
+protocol/
+transport/
+types/
+index.cjs  71B
+index.d.ts  141B
+index.js  32B
+provider.d.ts  370B
+provider.test.d.ts  11B
+
+📊 5 files, 8 dirs (3 .ts, 1 .cjs, 1 .js)
+EXIT=0

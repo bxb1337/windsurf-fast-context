@@ -1,0 +1,2 @@
+function
+EXIT=0

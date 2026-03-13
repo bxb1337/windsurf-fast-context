@@ -1,0 +1,16 @@
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/model/devstral-language-model.test.ts -- --run -t 'tool markers returns tool-call content parts'
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/model/devstral-language-model.test.ts  (2 tests) 7ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  15:52:38
+   Duration  591ms (transform 74ms, setup 0ms, collect 70ms, tests 7ms, environment 0ms, prepare 246ms)
+
+
+EXIT=0

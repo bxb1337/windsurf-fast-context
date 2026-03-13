@@ -1,0 +1,16 @@
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/provider.test.ts -- --run
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/provider.test.ts  (6 tests) 2ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  16:18:28
+   Duration  558ms (transform 70ms, setup 0ms, collect 69ms, tests 2ms, environment 0ms, prepare 183ms)
+
+
+EXIT=0

@@ -1,0 +1,3 @@
+$ node -e 'const { createWindsurfProvider } = require("./dist/index.cjs"); console.log(typeof createWindsurfProvider);'
+function
+EXIT=0
