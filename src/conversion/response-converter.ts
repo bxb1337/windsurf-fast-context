@@ -17,6 +17,8 @@ export type LanguageModelV3Content = TextPart | ToolCallPart;
 
 const TOOL_CALL_PREFIX = '[TOOL_CALLS]';
 const ARGS_PREFIX = '[ARGS]';
+const STOP_TOKEN = '</s>';
+const EMPTY_TOOL_CALLS_PATTERN = /TOOL_CALLS\d*<\/s>\s*\{\}/g;
 
 function pushText(parts: LanguageModelV3Content[], text: string): void {
   if (text.length > 0) {
@@ -242,7 +244,11 @@ function decodeResponseText(buffer: Buffer): string {
 }
 
 export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
-  const responseText = decodeResponseText(buffer)
+  let responseText = decodeResponseText(buffer)
+  
+  responseText = responseText.replace(EMPTY_TOOL_CALLS_PATTERN, '')
+  responseText = responseText.replace(STOP_TOKEN, '')
+  
   const parts: LanguageModelV3Content[] = [];
   let cursor = 0;
   let toolCallCount = 0;

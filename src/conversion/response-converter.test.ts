@@ -87,4 +87,22 @@ describe('convertResponse', () => {
 
     expect(result).toEqual([{ type: 'text', text: 'hello from gzip' }]);
   });
+
+  it('strips empty TOOL_CALLS markers with stop token', () => {
+    const input = 'Hello world TOOL_CALLS0</s>{}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: 'Hello world ' }]);
+  });
+
+  it('strips standalone stop token', () => {
+    const input = 'Hello world</s>';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: 'Hello world' }]);
+  });
+
+  it('handles TOOL_CALLS with number prefix before stop token', () => {
+    const input = 'Text before TOOL_CALLS1</s>{} text after';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: 'Text before  text after' }]);
+  });
 });
