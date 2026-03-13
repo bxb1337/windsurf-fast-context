@@ -34,10 +34,7 @@ export interface LanguageModelV3CallOptions {
 
 export interface LanguageModelV3GenerateResult {
   content: GenerateContentPart[]
-  finishReason: {
-    unified: 'stop'
-    raw: string | undefined
-  }
+  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other'
   usage: {
     inputTokens: {
       total: number | undefined
@@ -116,10 +113,8 @@ type LanguageModelV3StreamPart =
     }
   | {
       type: 'finish'
-      finishReason: {
-        unified: 'stop'
-        raw: string | undefined
-      }
+      finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other'
+      rawFinishReason: string | undefined
       usage: {
         inputTokens: {
           total: number | undefined
@@ -193,7 +188,7 @@ export class DevstralLanguageModel {
 
     return {
       content,
-      finishReason: { unified: 'stop', raw: 'stop' },
+      finishReason: 'stop',
       usage: emptyUsage(),
       warnings: [],
     }
@@ -321,7 +316,8 @@ export class DevstralLanguageModel {
             closeTextSegment()
             safeEnqueue(controller, {
               type: 'finish',
-              finishReason: { unified: 'stop', raw: 'stop' },
+              finishReason: 'stop',
+              rawFinishReason: 'stop',
               usage: emptyUsage(),
             })
             safeClose(controller)
@@ -334,7 +330,8 @@ export class DevstralLanguageModel {
               })
               safeEnqueue(controller, {
                 type: 'finish',
-                finishReason: { unified: 'stop', raw: 'stop' },
+                finishReason: 'error',
+                rawFinishReason: 'error',
                 usage: emptyUsage(),
               })
             }

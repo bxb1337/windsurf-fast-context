@@ -185,7 +185,7 @@ describe('DevstralLanguageModel doGenerate', () => {
     })
 
     expect(result.content).toEqual([{ type: 'text', text: 'generated answer' }])
-    expect(result.finishReason).toEqual({ unified: 'stop', raw: 'stop' })
+    expect(result.finishReason).toBe('stop')
     expect(result.usage).toEqual({
       inputTokens: {
         total: undefined,
@@ -370,7 +370,8 @@ describe('DevstralLanguageModel doStream', () => {
       expect(parts[4]).toMatchObject({ type: 'text-delta', delta: 'world' })
       expect(parts[6]).toEqual({
         type: 'finish',
-        finishReason: { unified: 'stop', raw: 'stop' },
+        finishReason: 'stop',
+        rawFinishReason: 'stop',
         usage: {
           inputTokens: {
             total: undefined,
