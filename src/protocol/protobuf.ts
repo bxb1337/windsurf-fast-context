@@ -114,9 +114,13 @@ export function extractStrings(buffer: Buffer): string[] {
         break;
       }
 
-      const candidate = decodeUtf8IfValid(buffer.subarray(offset, end));
+      const slice = buffer.subarray(offset, end);
+      const candidate = decodeUtf8IfValid(slice);
       if (candidate !== null) {
         result.push(candidate);
+      } else {
+        const nested = extractStrings(slice);
+        result.push(...nested);
       }
 
       offset = end;

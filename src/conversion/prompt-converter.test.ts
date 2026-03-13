@@ -93,8 +93,7 @@ describe('convertPrompt', () => {
         role: 4,
         content: '{"hits":["a.ts","b.ts"]}',
         metadata: {
-          toolCallId: 'call_2',
-          toolName: 'searchDocs',
+          refCallId: 'call_2',
         },
       },
       { role: 2, content: 'Done.' },

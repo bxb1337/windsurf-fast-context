@@ -92,6 +92,12 @@ function waitFor(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function decodeRequestPayload(body: Buffer): Buffer {
+  // Body is now a connect frame directly (gzip is inside the frame, not outside)
+  const decodedFrames = connectFrameDecode(body)
+  return decodedFrames[0] ?? Buffer.alloc(0)
+}
+
 async function collectStreamParts(stream: ReadableStream<unknown>): Promise<Array<{ type: string; [key: string]: unknown }>> {
   const reader = stream.getReader()
   const parts: Array<{ type: string; [key: string]: unknown }> = []
@@ -109,6 +115,47 @@ async function collectStreamParts(stream: ReadableStream<unknown>): Promise<Arra
 }
 
 describe('DevstralLanguageModel doGenerate', () => {
+  it('generate request uses connect endpoint and connect+proto gzip headers', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    const requestBodies: Buffer[] = []
+    const jwt = makeJwt(4_050_000_000, 'connect-gzip')
+    const fakeFetch: FetchLike = async (input, init) => {
+      const url = String(input)
+      calls.push({ url, init })
+
+      if (url.endsWith('/GetUserJwt')) {
+        return new Response(Uint8Array.from(Buffer.from(jwt, 'utf8')), { status: 200 })
+      }
+
+      requestBodies.push(bufferFromBody(init?.body))
+      return new Response(Uint8Array.from(connectFrameEncode(Buffer.from('ok', 'utf8'))), { status: 200 })
+    }
+
+    const model = new DevstralLanguageModel({ apiKey: 'test-api-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Use connect route.' }] }],
+    })
+
+    const generateCall = calls[1]
+    expect(generateCall?.url).toBe('https://windsurf.test/exa.api_server_pb.ApiServerService/GetDevstralStream')
+
+    const headers = new Headers(generateCall?.init?.headers)
+    expect(headers.get('content-type')).toBe('application/connect+proto')
+    expect(headers.get('connect-protocol-version')).toBe('1')
+    expect(headers.get('connect-timeout-ms')).toBe('30000')
+    expect(headers.get('connect-accept-encoding')).toBe('gzip')
+    expect(headers.get('connect-content-encoding')).toBe('gzip')
+    expect(headers.get('accept-encoding')).toBe('identity')
+
+    const body = requestBodies[0]
+    expect(body?.readUInt8(0)).toBe(1)
+
+    const strings = extractStrings(decodeRequestPayload(body ?? Buffer.alloc(0)))
+    const combined = strings.join('\n')
+    expect(combined).toContain('Use connect route.')
+  })
+
   it('generate request returns plain text content', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     const requestBodies: Buffer[] = []
@@ -130,7 +177,7 @@ describe('DevstralLanguageModel doGenerate', () => {
 
     const model = new DevstralLanguageModel({ apiKey: 'test-api-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
 
-    expect(model.specificationVersion).toBe('V3')
+    expect(model.specificationVersion).toBe('v3')
     expect(model.supportedUrls).toEqual({})
 
     const result = await model.doGenerate({
@@ -138,15 +185,26 @@ describe('DevstralLanguageModel doGenerate', () => {
     })
 
     expect(result.content).toEqual([{ type: 'text', text: 'generated answer' }])
-    expect(result.finishReason).toBe('stop')
-    expect(result.usage).toEqual({ inputTokens: undefined, outputTokens: undefined, totalTokens: undefined })
+    expect(result.finishReason).toEqual({ unified: 'stop', raw: 'stop' })
+    expect(result.usage).toEqual({
+      inputTokens: {
+        total: undefined,
+        noCache: undefined,
+        cacheRead: undefined,
+        cacheWrite: undefined,
+      },
+      outputTokens: {
+        total: undefined,
+        text: undefined,
+        reasoning: undefined,
+      },
+    })
 
     expect(calls).toHaveLength(2)
     expect(calls[0]?.url).toBe('https://windsurf.test/exa.auth_pb.AuthService/GetUserJwt')
-    expect(calls[1]?.url).toBe('https://windsurf.test/exa.code_search_pb.CodeSearchService/Generate')
+    expect(calls[1]?.url).toBe('https://windsurf.test/exa.api_server_pb.ApiServerService/GetDevstralStream')
 
-    const frames = connectFrameDecode(requestBodies[0] ?? Buffer.alloc(0))
-    const strings = extractStrings(frames[0] ?? Buffer.alloc(0))
+    const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
     const combined = strings.join('\n')
     expect(combined).toContain('test-api-key')
     expect(combined).toContain(jwt)
@@ -197,8 +255,7 @@ describe('DevstralLanguageModel doGenerate', () => {
       },
     ])
 
-    const frames = connectFrameDecode(requestBodies[0] ?? Buffer.alloc(0))
-    const strings = extractStrings(frames[0] ?? Buffer.alloc(0))
+    const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
     const combined = strings.join('\n')
 
     expect(combined).toContain('searchRepo')
@@ -313,11 +370,19 @@ describe('DevstralLanguageModel doStream', () => {
       expect(parts[4]).toMatchObject({ type: 'text-delta', delta: 'world' })
       expect(parts[6]).toEqual({
         type: 'finish',
-        finishReason: 'stop',
+        finishReason: { unified: 'stop', raw: 'stop' },
         usage: {
-          inputTokens: undefined,
-          outputTokens: undefined,
-          totalTokens: undefined,
+          inputTokens: {
+            total: undefined,
+            noCache: undefined,
+            cacheRead: undefined,
+            cacheWrite: undefined,
+          },
+          outputTokens: {
+            total: undefined,
+            text: undefined,
+            reasoning: undefined,
+          },
         },
       })
     } finally {
@@ -326,7 +391,7 @@ describe('DevstralLanguageModel doStream', () => {
 
     expect(calls).toHaveLength(2)
     expect(calls[0]?.url).toBe('https://windsurf.test/exa.auth_pb.AuthService/GetUserJwt')
-    expect(calls[1]?.url).toBe('https://windsurf.test/exa.code_search_pb.CodeSearchService/Generate')
+    expect(calls[1]?.url).toBe('https://windsurf.test/exa.api_server_pb.ApiServerService/GetDevstralStream')
   })
 
   it('stream-tool emits tool-input deltas before final tool-call and finish', async () => {

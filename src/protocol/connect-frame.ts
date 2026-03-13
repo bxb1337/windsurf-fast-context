@@ -3,11 +3,19 @@ import { gunzipSync, gzipSync } from 'node:zlib';
 const FRAME_HEADER_SIZE = 5;
 const FLAG_COMPRESSED = 1;
 
-export function connectFrameEncode(payload: Buffer, compressed = false): Buffer {
-  const payloadBytes = compressed ? gzipSync(payload) : payload;
+/**
+ * Encode a protobuf payload into a Connect-RPC frame.
+ *
+ * @param payload - The raw protobuf bytes to encode
+ * @param compress - Whether to gzip-compress the payload (default: true)
+ *                   When true, the payload is gzipped and flags=1 is set
+ * @returns Buffer containing: [flags byte][4-byte length][payload (gzipped if compress=true)]
+ */
+export function connectFrameEncode(payload: Buffer, compress = true): Buffer {
+  const payloadBytes = compress ? gzipSync(payload) : payload;
   const frame = Buffer.allocUnsafe(FRAME_HEADER_SIZE + payloadBytes.length);
 
-  frame.writeUInt8(compressed ? FLAG_COMPRESSED : 0, 0);
+  frame.writeUInt8(compress ? FLAG_COMPRESSED : 0, 0);
   frame.writeUInt32BE(payloadBytes.length, 1);
   payloadBytes.copy(frame, FRAME_HEADER_SIZE);
 

@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto'
+import { arch, cpus, hostname, platform, release, totalmem, version as osVersion } from 'node:os'
+
 import { resolveApiKey } from '../auth/api-key.js'
 import { JwtManager } from '../auth/jwt-manager.js'
 import { convertPrompt, type LanguageModelV3Prompt } from '../conversion/prompt-converter.js'
@@ -9,7 +12,14 @@ import type { DevstralMessage, WindsurfProviderOptions } from '../types/index.js
 
 const DEFAULT_BASE_URL = 'https://server.self-serve.windsurf.com'
 const DEFAULT_MODEL_ID = 'MODEL_SWE_1_6_FAST'
-const GENERATE_PATH = '/exa.code_search_pb.CodeSearchService/Generate'
+const API_SERVICE_PATH = '/exa.api_server_pb.ApiServerService'
+const DEVSTRAL_STREAM_PATH = '/GetDevstralStream'
+const CONNECT_TIMEOUT_MS = '30000'
+const WS_APP = 'windsurf'
+const WS_APP_VER = process.env.WS_APP_VER ?? '1.48.2'
+const WS_LS_VER = process.env.WS_LS_VER ?? '1.9544.35'
+const SENTRY_PUBLIC_KEY = 'b813f73488da69eedec534dba1029111'
+const CONNECT_USER_AGENT = 'connect-go/1.18.1 (go1.25.5)'
 
 export interface LanguageModelV3FunctionTool {
   description?: string
@@ -24,12 +34,24 @@ export interface LanguageModelV3CallOptions {
 
 export interface LanguageModelV3GenerateResult {
   content: GenerateContentPart[]
-  finishReason: 'stop'
-  usage: {
-    inputTokens: number | undefined
-    outputTokens: number | undefined
-    totalTokens: number | undefined
+  finishReason: {
+    unified: 'stop'
+    raw: string | undefined
   }
+  usage: {
+    inputTokens: {
+      total: number | undefined
+      noCache: number | undefined
+      cacheRead: number | undefined
+      cacheWrite: number | undefined
+    }
+    outputTokens: {
+      total: number | undefined
+      text: number | undefined
+      reasoning: number | undefined
+    }
+  }
+  warnings: unknown[]
 }
 
 export interface LanguageModelV3StreamResult {
@@ -94,11 +116,22 @@ type LanguageModelV3StreamPart =
     }
   | {
       type: 'finish'
-      finishReason: 'stop'
+      finishReason: {
+        unified: 'stop'
+        raw: string | undefined
+      }
       usage: {
-        inputTokens: number | undefined
-        outputTokens: number | undefined
-        totalTokens: number | undefined
+        inputTokens: {
+          total: number | undefined
+          noCache: number | undefined
+          cacheRead: number | undefined
+          cacheWrite: number | undefined
+        }
+        outputTokens: {
+          total: number | undefined
+          text: number | undefined
+          reasoning: number | undefined
+        }
       }
     }
 
@@ -109,7 +142,7 @@ export interface DevstralLanguageModelOptions extends WindsurfProviderOptions {
 }
 
 export class DevstralLanguageModel {
-  readonly specificationVersion = 'V3'
+  readonly specificationVersion = 'v3'
   readonly provider = 'windsurf'
   readonly modelId: string
   readonly supportedUrls: Record<string, RegExp[]> = {}
@@ -140,22 +173,16 @@ export class DevstralLanguageModel {
     const requestPayload = buildGenerateRequest({
       apiKey: this.apiKey,
       jwt,
-      modelId: this.modelId,
       messages,
       tools: options.tools,
     })
 
+    // connectFrameEncode now handles gzip compression internally (default compress=true)
     const requestFrame = connectFrameEncode(requestPayload)
-    const headers = new Headers({
-      ...this.headers,
-      Accept: 'application/grpc+proto',
-      Authorization: `Bearer ${jwt}`,
-      'Connect-Protocol-Version': '1',
-      'Content-Type': 'application/grpc+proto',
-    })
+    const headers = createConnectHeaders(this.headers)
 
     const responseFrame = await this.transport.postUnary(
-      `${this.baseURL}${GENERATE_PATH}`,
+      `${this.baseURL}${API_SERVICE_PATH}${DEVSTRAL_STREAM_PATH}`,
       requestFrame,
       headers,
     )
@@ -166,8 +193,9 @@ export class DevstralLanguageModel {
 
     return {
       content,
-      finishReason: 'stop',
+      finishReason: { unified: 'stop', raw: 'stop' },
       usage: emptyUsage(),
+      warnings: [],
     }
   }
 
@@ -177,22 +205,16 @@ export class DevstralLanguageModel {
     const requestPayload = buildGenerateRequest({
       apiKey: this.apiKey,
       jwt,
-      modelId: this.modelId,
       messages,
       tools: options.tools,
     })
 
+    // connectFrameEncode now handles gzip compression internally (default compress=true)
     const requestFrame = connectFrameEncode(requestPayload)
-    const headers = new Headers({
-      ...this.headers,
-      Accept: 'application/grpc+proto',
-      Authorization: `Bearer ${jwt}`,
-      'Connect-Protocol-Version': '1',
-      'Content-Type': 'application/grpc+proto',
-    })
+    const headers = createConnectHeaders(this.headers)
 
     const byteStream = await this.transport.postStreaming(
-      `${this.baseURL}${GENERATE_PATH}`,
+      `${this.baseURL}${API_SERVICE_PATH}${DEVSTRAL_STREAM_PATH}`,
       requestFrame,
       headers,
       options.abortSignal,
@@ -299,7 +321,7 @@ export class DevstralLanguageModel {
             closeTextSegment()
             safeEnqueue(controller, {
               type: 'finish',
-              finishReason: 'stop',
+              finishReason: { unified: 'stop', raw: 'stop' },
               usage: emptyUsage(),
             })
             safeClose(controller)
@@ -312,7 +334,7 @@ export class DevstralLanguageModel {
               })
               safeEnqueue(controller, {
                 type: 'finish',
-                finishReason: 'stop',
+                finishReason: { unified: 'stop', raw: 'stop' },
                 usage: emptyUsage(),
               })
             }
@@ -382,14 +404,30 @@ function isAborted(signal: AbortSignal | undefined): boolean {
 }
 
 function emptyUsage(): {
-  inputTokens: number | undefined
-  outputTokens: number | undefined
-  totalTokens: number | undefined
+  inputTokens: {
+    total: number | undefined
+    noCache: number | undefined
+    cacheRead: number | undefined
+    cacheWrite: number | undefined
+  }
+  outputTokens: {
+    total: number | undefined
+    text: number | undefined
+    reasoning: number | undefined
+  }
 } {
   return {
-    inputTokens: undefined,
-    outputTokens: undefined,
-    totalTokens: undefined,
+    inputTokens: {
+      total: undefined,
+      noCache: undefined,
+      cacheRead: undefined,
+      cacheWrite: undefined,
+    },
+    outputTokens: {
+      total: undefined,
+      text: undefined,
+      reasoning: undefined,
+    },
   }
 }
 
@@ -412,56 +450,121 @@ function toV3Content(parts: LanguageModelV3Content[]): GenerateContentPart[] {
 function buildGenerateRequest(input: {
   apiKey: string
   jwt: string
-  modelId: string
   messages: DevstralMessage[]
   tools?: Record<string, LanguageModelV3FunctionTool>
 }): Buffer {
   const request = new ProtobufEncoder()
-  request.writeMessage(1, buildMetadata(input.apiKey, input.jwt, input.modelId))
+  request.writeMessage(1, buildMetadata(input.apiKey, input.jwt))
 
   for (const message of input.messages) {
     request.writeMessage(2, buildMessage(message))
   }
 
-  if (input.tools) {
-    for (const [name, tool] of Object.entries(input.tools)) {
-      request.writeMessage(3, buildToolDefinition(name, tool))
-    }
+  // Tools are sent as a single JSON string at field 3 (not repeated messages)
+  if (input.tools && Object.keys(input.tools).length > 0) {
+    const toolsArray = Object.entries(input.tools).map(([name, tool]) => ({
+      type: 'function',
+      function: {
+        name,
+        description: tool.description ?? '',
+        parameters: tool.parameters ?? {},
+      },
+    }))
+    request.writeString(3, JSON.stringify(toolsArray))
   }
 
   return request.toBuffer()
 }
 
-function buildMetadata(apiKey: string, jwt: string, modelId: string): ProtobufEncoder {
+/**
+ * Build metadata protobuf with correct field numbers matching the reference implementation.
+ * 
+ * Field mapping:
+ *   1: WS_APP ("windsurf")
+ *   2: WS_APP_VER ("1.48.2")
+ *   3: apiKey
+ *   4: locale ("zh-cn")
+ *   5: systemInfo JSON
+ *   7: WS_LS_VER ("1.9544.35")
+ *   8: cpuInfo JSON
+ *   12: WS_APP ("windsurf")
+ *   21: jwt
+ *   30: bytes [0x00, 0x01]
+ */
+function buildMetadata(apiKey: string, jwt: string): ProtobufEncoder {
+  const plat = platform()
+  
+  const systemInfo = {
+    Os: plat,
+    Arch: arch(),
+    Release: release(),
+    Version: osVersion(),
+    Machine: arch(),
+    Nodename: hostname(),
+    Sysname: plat === 'darwin' ? 'Darwin' : plat === 'win32' ? 'Windows_NT' : 'Linux',
+    ProductVersion: '',
+  }
+  
+  const cpuList = cpus()
+  const ncpu = cpuList.length || 4
+  const cpuInfo = {
+    NumSockets: 1,
+    NumCores: ncpu,
+    NumThreads: ncpu,
+    VendorID: '',
+    Family: '0',
+    Model: '0',
+    ModelName: cpuList[0]?.model || 'Unknown',
+    Memory: totalmem(),
+  }
+  
   const metadata = new ProtobufEncoder()
-  metadata.writeString(1, 'windsurf')
-  metadata.writeString(2, process.env.WS_APP_VER ?? '1.48.2')
+  metadata.writeString(1, WS_APP)
+  metadata.writeString(2, WS_APP_VER)
   metadata.writeString(3, apiKey)
   metadata.writeString(4, 'zh-cn')
-  metadata.writeString(5, jwt)
-  metadata.writeString(6, modelId)
+  metadata.writeString(5, JSON.stringify(systemInfo))
+  metadata.writeString(7, WS_LS_VER)
+  metadata.writeString(8, JSON.stringify(cpuInfo))
+  metadata.writeString(12, WS_APP)
+  metadata.writeString(21, jwt)
+  metadata.writeBytes(30, Buffer.from([0x00, 0x01]))
+  
   return metadata
 }
 
+/**
+ * Build message protobuf with correct field numbers matching the reference implementation.
+ * 
+ * Field mapping:
+ *   2: role (1=user, 2=assistant, 4=tool_result, 5=system)
+ *   3: content
+ *   6: toolCall (nested message with fields 1=callId, 2=name, 3=argsJson)
+ *   7: refCallId
+ */
 function buildMessage(message: DevstralMessage): ProtobufEncoder {
   const encoded = new ProtobufEncoder()
-  encoded.writeVarint(1, message.role)
-  encoded.writeString(2, message.content)
+  // Role at field 2 (not 1)
+  encoded.writeVarint(2, message.role)
+  // Content at field 3 (not 2)
+  encoded.writeString(3, message.content)
 
   const toolCallId = getMetadataString(message, 'toolCallId')
   const toolName = getMetadataString(message, 'toolName')
   const toolArgsJson = getMetadataString(message, 'toolArgsJson')
 
-  if (toolCallId) {
-    encoded.writeString(3, toolCallId)
+  if (toolCallId && toolName && toolArgsJson) {
+    // Tool call as nested message at field 6
+    const toolCall = new ProtobufEncoder()
+    toolCall.writeString(1, toolCallId)
+    toolCall.writeString(2, toolName)
+    toolCall.writeString(3, toolArgsJson)
+    encoded.writeMessage(6, toolCall)
   }
 
-  if (toolName) {
-    encoded.writeString(4, toolName)
-  }
-
-  if (toolArgsJson) {
-    encoded.writeString(5, toolArgsJson)
+  const refCallId = getMetadataString(message, 'refCallId')
+  if (refCallId) {
+    encoded.writeString(7, refCallId)
   }
 
   return encoded
@@ -472,16 +575,30 @@ function getMetadataString(message: DevstralMessage, key: string): string | null
   return typeof value === 'string' ? value : null
 }
 
-function buildToolDefinition(name: string, tool: LanguageModelV3FunctionTool): ProtobufEncoder {
-  const encoded = new ProtobufEncoder()
-  encoded.writeString(1, name)
+/**
+ * Create Connect-RPC headers matching the reference implementation.
+ * Note: Authorization header is NOT included - JWT is in metadata field 21.
+ */
+function createConnectHeaders(headers: Record<string, string>): Headers {
+  const traceId = randomUUID().replace(/-/g, '')
+  const spanId = randomUUID().replace(/-/g, '').slice(0, 16)
 
-  if (tool.description) {
-    encoded.writeString(2, tool.description)
-  }
-
-  encoded.writeString(3, JSON.stringify(tool.parameters ?? {}))
-  return encoded
+  return new Headers({
+    ...headers,
+    'Content-Type': 'application/connect+proto',
+    'Connect-Protocol-Version': '1',
+    'Connect-Timeout-Ms': CONNECT_TIMEOUT_MS,
+    'Connect-Accept-Encoding': 'gzip',
+    'Connect-Content-Encoding': 'gzip',
+    'Accept-Encoding': 'identity',
+    'User-Agent': CONNECT_USER_AGENT,
+    Baggage:
+      `sentry-release=language-server-windsurf@${WS_LS_VER},` +
+      'sentry-environment=stable,sentry-sampled=false,' +
+      `sentry-trace_id=${traceId},` +
+      `sentry-public_key=${SENTRY_PUBLIC_KEY}`,
+    'Sentry-Trace': `${traceId}-${spanId}-0`,
+  })
 }
 
 function trimTrailingSlash(value: string): string {

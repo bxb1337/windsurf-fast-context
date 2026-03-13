@@ -113,14 +113,13 @@ export function convertPrompt(prompt: LanguageModelV3Prompt): DevstralMessage[] 
       continue;
     }
 
+    // Tool result messages - use refCallId to reference the original tool call
     for (const part of message.content) {
       messages.push({
         role: 4,
         content: toContentString(part.result),
         metadata: {
-          toolCallId: part.toolCallId,
-          toolName: part.toolName,
-          ...(part.isError != null ? { isError: part.isError } : {}),
+          refCallId: part.toolCallId,  // This links back to the tool call
         },
       });
     }

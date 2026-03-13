@@ -13,7 +13,7 @@ const payloadWorld = Buffer.from('CONNECT\x02world', 'utf8');
 
 describe('connectFrameEncode', () => {
   it('roundtrip encodes and decodes uncompressed payload', () => {
-    const encoded = connectFrameEncode(payloadHello);
+    const encoded = connectFrameEncode(payloadHello, false);
 
     expect(encoded.readUInt8(0)).toBe(0);
     expect(encoded.readUInt32BE(1)).toBe(payloadHello.length);
