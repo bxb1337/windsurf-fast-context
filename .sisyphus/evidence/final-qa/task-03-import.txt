@@ -1,0 +1,2 @@
+$ echo "import type { WindsurfProviderOptions } from './src/types/index.js'; console.log('ok');" > test-import.ts && pnpm exec tsc --noEmit test-import.ts && rm test-import.ts
+EXIT=0

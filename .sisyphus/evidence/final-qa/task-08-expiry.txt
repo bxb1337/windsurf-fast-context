@@ -1,0 +1,16 @@
+$ pnpm test src/auth/jwt-manager.test.ts -- --run -t "expiry"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/auth/jwt-manager.test.ts -- --run -t expiry
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/auth/jwt-manager.test.ts  (3 tests) 6ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  17:11:45
+   Duration  579ms (transform 47ms, setup 1ms, collect 39ms, tests 6ms, environment 0ms, prepare 269ms)
+
+EXIT=0

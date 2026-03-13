@@ -1,0 +1,16 @@
+$ pnpm test src/transport/http.test.ts -- --run -t "unary"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/transport/http.test.ts -- --run -t unary
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/transport/http.test.ts  (9 tests) 10ms
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  17:11:41
+   Duration  588ms (transform 54ms, setup 0ms, collect 38ms, tests 10ms, environment 0ms, prepare 278ms)
+
+EXIT=0

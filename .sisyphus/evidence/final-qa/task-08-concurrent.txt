@@ -1,0 +1,16 @@
+$ pnpm test src/auth/jwt-manager.test.ts -- --run -t "concurrent"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/auth/jwt-manager.test.ts -- --run -t concurrent
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/auth/jwt-manager.test.ts  (3 tests) 7ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  17:11:45
+   Duration  576ms (transform 53ms, setup 0ms, collect 40ms, tests 7ms, environment 0ms, prepare 253ms)
+
+EXIT=0

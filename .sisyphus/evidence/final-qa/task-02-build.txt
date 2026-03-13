@@ -1,0 +1,6 @@
+$ pnpm build
+
+> @your-org/windsurf-fast-context@0.0.0 build /home/bxb1337/js-projects/windsurf-fast-context
+> pnpm -s run build:types && pnpm -s run build:esm && pnpm -s run build:cjs && node ./scripts/postbuild.js
+
+EXIT=0

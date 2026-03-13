@@ -1,0 +1,22 @@
+$ pnpm install
+ WARN  Moving typescript that was installed by a different package manager to "node_modules/.ignored"
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Progress: resolved 1, reused 1, downloaded 0, added 0
+Progress: resolved 2, reused 1, downloaded 0, added 0
+Packages: +1
++
+Progress: resolved 122, reused 74, downloaded 0, added 0
+Progress: resolved 122, reused 74, downloaded 1, added 1, done
+
+devDependencies:
++ typescript 5.9.3
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: esbuild@0.21.5.                                     │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 4.1s using pnpm v10.32.1
+EXIT=0

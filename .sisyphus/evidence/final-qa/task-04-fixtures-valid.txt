@@ -1,0 +1,12 @@
+$ bash -lc "shopt -s globstar && file test/fixtures/**/*.bin"
+test/fixtures/auth/auth-1.bin:           ISO-8859 text, with no line terminators
+test/fixtures/auth/auth-2.bin:           ISO-8859 text, with no line terminators
+test/fixtures/connect/connect-msg-1.bin: data
+test/fixtures/connect/connect-msg-2.bin: data
+test/fixtures/connect/frame-gzip.bin:    data
+test/fixtures/connect/frame-multi.bin:   data
+test/fixtures/connect/frame-simple.bin:  data
+test/fixtures/extra.bin:                 data
+test/fixtures/protobuf/msg-1.bin:        data
+test/fixtures/protobuf/msg-2.bin:        data
+EXIT=0

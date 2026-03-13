@@ -1,0 +1,16 @@
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/protocol/connect-frame.test.ts -- --run -t roundtrip
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/protocol/connect-frame.test.ts  (5 tests) 6ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  14:45:13
+   Duration  597ms (transform 35ms, setup 0ms, collect 29ms, tests 6ms, environment 0ms, prepare 303ms)
+
+
+EXIT=0

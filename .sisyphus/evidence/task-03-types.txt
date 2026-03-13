@@ -1,0 +1,5 @@
+
+> @your-org/windsurf-fast-context@0.0.0 typecheck /home/bxb1337/js-projects/windsurf-fast-context
+> tsc -p tsconfig.json --noEmit
+
+EXIT=0

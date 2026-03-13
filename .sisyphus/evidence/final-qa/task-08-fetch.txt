@@ -1,0 +1,16 @@
+$ pnpm test src/auth/jwt-manager.test.ts -- --run -t "fetch"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/auth/jwt-manager.test.ts -- --run -t fetch
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/auth/jwt-manager.test.ts  (3 tests) 6ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  17:11:44
+   Duration  581ms (transform 44ms, setup 0ms, collect 38ms, tests 6ms, environment 0ms, prepare 197ms)
+
+EXIT=0

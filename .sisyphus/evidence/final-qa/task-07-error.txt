@@ -1,0 +1,16 @@
+$ pnpm test src/transport/http.test.ts -- --run -t "error"
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/transport/http.test.ts -- --run -t error
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/transport/http.test.ts  (9 tests) 9ms
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  17:11:43
+   Duration  585ms (transform 49ms, setup 0ms, collect 35ms, tests 9ms, environment 0ms, prepare 286ms)
+
+EXIT=0

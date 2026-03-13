@@ -1,0 +1,16 @@
+$ pnpm test src/protocol/protobuf.test.ts -- --run
+
+> @your-org/windsurf-fast-context@0.0.0 test /home/bxb1337/js-projects/windsurf-fast-context
+> vitest --run src/protocol/protobuf.test.ts -- --run
+
+
+ RUN  v1.6.1 /home/bxb1337/js-projects/windsurf-fast-context
+
+ ✓ src/protocol/protobuf.test.ts  (4 tests) 3ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  17:11:35
+   Duration  563ms (transform 48ms, setup 0ms, collect 34ms, tests 3ms, environment 0ms, prepare 265ms)
+
+EXIT=0

@@ -1,0 +1,10 @@
+$ ls -la test/fixtures/
+total 28
+drwxr-xr-x 5 bxb1337 bxb1337 4096 Mar 13 13:58 .
+drwxr-xr-x 4 bxb1337 bxb1337 4096 Mar 13 16:25 ..
+-rw-r--r-- 1 bxb1337 bxb1337 2234 Mar 13 14:39 README.md
+drwxr-xr-x 2 bxb1337 bxb1337 4096 Mar 13 13:57 auth
+drwxr-xr-x 2 bxb1337 bxb1337 4096 Mar 13 14:39 connect
+-rw-r--r-- 1 bxb1337 bxb1337    8 Mar 13 13:57 extra.bin
+drwxr-xr-x 2 bxb1337 bxb1337 4096 Mar 13 13:57 protobuf
+EXIT=0
