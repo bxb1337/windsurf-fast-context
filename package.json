@@ -1,6 +1,6 @@
 {
   "name": "@bxb1337/windsurf-fast-context",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "AI SDK V3 provider for Windsurf's Devstral code search API",
   "type": "module",
   "scripts": {
