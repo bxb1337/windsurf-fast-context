@@ -1,7 +1,7 @@
 {
-  "name": "@your-org/windsurf-fast-context",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@bxb1337/windsurf-fast-context",
+  "version": "1.0.0",
+  "description": "AI SDK V3 provider for Windsurf's Devstral code search API",
   "type": "module",
   "scripts": {
     "test": "vitest --run",
@@ -11,10 +11,27 @@
     "build": "pnpm -s run build:types && pnpm -s run build:esm && pnpm -s run build:cjs && node ./scripts/postbuild.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "keywords": [
+    "windsurf",
+    "devstral",
+    "ai-sdk",
+    "code-search",
+    "llm",
+    "provider"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bxb1337/windsurf-fast-context"
+  },
   "devDependencies": {
     "ai": "^6.0.116",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "ai": ">=4.0.0"
   },
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -25,5 +42,10 @@
       "require": "./dist/index.cjs",
       "types": "./dist/index.d.ts"
     }
-  }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
 }

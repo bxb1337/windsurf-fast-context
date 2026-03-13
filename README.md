@@ -1,4 +1,4 @@
-# @your-org/windsurf-fast-context
+# @bxb1337/windsurf-fast-context
 
 An AI SDK V3 compatible provider for Windsurf's Devstral code search API. This provider exposes tool calls for code search operations, allowing tools like OpenCode to execute them.
 
@@ -7,11 +7,11 @@ An AI SDK V3 compatible provider for Windsurf's Devstral code search API. This p
 ## Installation
 
 ```bash
-npm install @your-org/windsurf-fast-context
+npm install @bxb1337/windsurf-fast-context
 # or
-pnpm add @your-org/windsurf-fast-context
+pnpm add @bxb1337/windsurf-fast-context
 # or
-yarn add @your-org/windsurf-fast-context
+yarn add @bxb1337/windsurf-fast-context
 ```
 
 ### Peer Dependencies
@@ -25,7 +25,7 @@ npm install ai
 ## Quick Start
 
 ```typescript
-import { createWindsurfProvider } from '@your-org/windsurf-fast-context';
+import { createWindsurfProvider } from '@bxb1337/windsurf-fast-context';
 import { generateText } from 'ai';
 
 // Create the provider with your API key
@@ -79,7 +79,7 @@ for (const part of result.content) {
 Creates a Windsurf provider factory function.
 
 ```typescript
-import { createWindsurfProvider } from '@your-org/windsurf-fast-context';
+import { createWindsurfProvider } from '@bxb1337/windsurf-fast-context';
 
 const windsurf = createWindsurfProvider({
   apiKey: 'your-api-key',
@@ -111,7 +111,7 @@ const model = windsurf('MODEL_SWE_1_6_FAST');
 A pre-configured provider instance that reads the API key from `WINDSURF_API_KEY`:
 
 ```typescript
-import { windsurf } from '@your-org/windsurf-fast-context';
+import { windsurf } from '@bxb1337/windsurf-fast-context';
 
 const model = windsurf('MODEL_SWE_1_6_FAST');
 ```
@@ -121,7 +121,7 @@ const model = windsurf('MODEL_SWE_1_6_FAST');
 The default export is the `windsurf` provider:
 
 ```typescript
-import windsurf from '@your-org/windsurf-fast-context';
+import windsurf from '@bxb1337/windsurf-fast-context';
 
 const model = windsurf('MODEL_SWE_1_6_FAST');
 ```
@@ -148,7 +148,7 @@ export WINDSURF_API_KEY="your-api-key"
 Then use the default export:
 
 ```typescript
-import windsurf from '@your-org/windsurf-fast-context';
+import windsurf from '@bxb1337/windsurf-fast-context';
 
 // Reads WINDSURF_API_KEY automatically
 const model = windsurf('MODEL_SWE_1_6_FAST');
@@ -163,7 +163,7 @@ Add to your `opencode.json`:
   "$schema": "https://opencode.ai/config.json",
   "provider": {
     "windsurf": {
-      "npm": "@your-org/windsurf-fast-context",
+      "npm": "@bxb1337/windsurf-fast-context",
       "name": "Windsurf Devstral",
       "options": {
         "apiKey": "your-api-key",
@@ -186,7 +186,7 @@ Add to your `opencode.json`:
 ### Custom Fetch for Testing
 
 ```typescript
-import { createWindsurfProvider } from '@your-org/windsurf-fast-context';
+import { createWindsurfProvider } from '@bxb1337/windsurf-fast-context';
 
 const mockFetch = async (url: string | URL | Request, init?: RequestInit) => {
   // Return mock responses for testing
@@ -206,7 +206,7 @@ const windsurf = createWindsurfProvider({
 ### Basic Code Search
 
 ```typescript
-import windsurf from '@your-org/windsurf-fast-context';
+import windsurf from '@bxb1337/windsurf-fast-context';
 import { generateText } from 'ai';
 
 const result = await generateText({
@@ -233,7 +233,7 @@ console.log(result.text);
 ### Streaming Responses
 
 ```typescript
-import windsurf from '@your-org/windsurf-fast-context';
+import windsurf from '@bxb1337/windsurf-fast-context';
 import { streamText } from 'ai';
 
 const stream = await streamText({
@@ -262,7 +262,7 @@ for await (const chunk of stream.textStream) {
 ### Multi-turn Conversation
 
 ```typescript
-import windsurf from '@your-org/windsurf-fast-context';
+import windsurf from '@bxb1337/windsurf-fast-context';
 import { generateText } from 'ai';
 
 const result = await generateText({
@@ -335,14 +335,3 @@ Per the design scope:
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome. Please ensure all tests pass before submitting a pull request:
-
-```bash
-pnpm install
-pnpm test
-pnpm build
-pnpm typecheck
-```
