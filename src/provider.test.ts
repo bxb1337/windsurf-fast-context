@@ -61,4 +61,19 @@ describe('provider factory', () => {
     expect(typeof createWindsurfProvider).toBe('function')
     expect(windsurf).toBeDefined()
   })
+
+  it('languageModel: provider has languageModel method', () => {
+    const factory = createWindsurfProvider({ apiKey: 'test-key' })
+    expect(typeof factory.languageModel).toBe('function')
+    const model = factory.languageModel('MODEL_SWE_1_6_FAST')
+    expect(model).toBeInstanceOf(DevstralLanguageModel)
+  })
+
+  it('languageModel: callable and languageModel return same model type', () => {
+    const factory = createWindsurfProvider({ apiKey: 'test-key' })
+    const model1 = factory('MODEL_SWE_1_6_FAST')
+    const model2 = factory.languageModel('MODEL_SWE_1_6_FAST')
+    expect(model1).toBeInstanceOf(DevstralLanguageModel)
+    expect(model2).toBeInstanceOf(DevstralLanguageModel)
+  })
 })

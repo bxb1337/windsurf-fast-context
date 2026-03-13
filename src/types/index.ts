@@ -6,6 +6,17 @@ export interface WindsurfProviderOptions {
   generateId?: () => string;
 }
 
+/**
+ * Windsurf provider interface extending AI SDK V3 ProviderV3 pattern.
+ * The provider is callable as a function and has a languageModel method.
+ */
+export interface WindsurfProvider {
+  (modelId?: string): DevstralLanguageModel;
+  languageModel(modelId?: string): DevstralLanguageModel;
+}
+
+import type { DevstralLanguageModel } from '../model/devstral-language-model.js'
+
 export type FetchFn = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 export interface Tool<Input = unknown, Output = unknown> {
