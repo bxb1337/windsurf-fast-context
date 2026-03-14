@@ -1,74 +1,25 @@
+import type { LanguageModelV3Prompt } from '@ai-sdk/provider';
+
 import type { DevstralMessage } from '../types/index.js';
 
-export type LanguageModelV3Prompt = Array<
-  | {
-      role: 'system';
-      content: string;
+function toolOutputToString(output: { type: string; value?: unknown; reason?: string }): string {
+  switch (output.type) {
+    case 'text':
+    case 'error-text':
+      return output.value as string;
+    case 'json':
+    case 'error-json':
+      return JSON.stringify(output.value);
+    case 'execution-denied': {
+      const obj: { type: 'execution-denied'; reason?: string } = { type: 'execution-denied' };
+      if (output.reason !== undefined) obj.reason = output.reason;
+      return JSON.stringify(obj);
     }
-  | {
-      role: 'user';
-      content: Array<
-        | {
-            type: 'text';
-            text: string;
-          }
-        | {
-            type: 'file';
-            data: string;
-            mediaType: string;
-          }
-        | {
-            type: 'image';
-            image: string;
-          }
-      >;
-    }
-  | {
-      role: 'assistant';
-      content: Array<
-        | {
-            type: 'text';
-            text: string;
-          }
-        | {
-            type: 'tool-call';
-            toolCallId: string;
-            toolName: string;
-            input: unknown;
-          }
-        | {
-            type: 'file';
-            data: string;
-            mediaType: string;
-          }
-        | {
-            type: 'image';
-            image: string;
-          }
-        | {
-            type: 'reasoning';
-            text: string;
-          }
-      >;
-    }
-  | {
-      role: 'tool';
-      content: Array<{
-        type: 'tool-result';
-        toolCallId: string;
-        toolName: string;
-        result: unknown;
-        isError?: boolean;
-      }>;
-    }
->;
-
-function toContentString(value: unknown): string {
-  if (typeof value === 'string') {
-    return value;
+    case 'content':
+      return JSON.stringify(output.value);
+    default:
+      return JSON.stringify(output);
   }
-
-  return JSON.stringify(value);
 }
 
 export function convertPrompt(prompt: LanguageModelV3Prompt): DevstralMessage[] {
@@ -113,13 +64,13 @@ export function convertPrompt(prompt: LanguageModelV3Prompt): DevstralMessage[] 
       continue;
     }
 
-    // Tool result messages - use refCallId to reference the original tool call
     for (const part of message.content) {
+      if (part.type !== 'tool-result') continue;
       messages.push({
         role: 4,
-        content: toContentString(part.result),
+        content: toolOutputToString(part.output),
         metadata: {
-          refCallId: part.toolCallId,  // This links back to the tool call
+          refCallId: part.toolCallId,
         },
       });
     }
