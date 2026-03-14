@@ -42,36 +42,36 @@ describe('convertPrompt', () => {
     });
   });
 
-  it('multi-turn preserves ordering across mixed roles', () => {
-    const prompt: Parameters<typeof convertPrompt>[0] = [
-      { role: 'system', content: 'System instruction' },
+  it('multi-turn preserves ordering across mixed roles (V3 output shape)', () => {
+    const prompt = [
+      { role: 'system' as const, content: 'System instruction' },
       {
-        role: 'user',
+        role: 'user' as const,
         content: [
-          { type: 'text', text: 'Find usage examples.' },
-          { type: 'file', data: 'ZmFrZQ==', mediaType: 'image/png' },
+          { type: 'text' as const, text: 'Find usage examples.' },
+          { type: 'file' as const, data: 'ZmFrZQ==', mediaType: 'image/png' },
         ],
       },
       {
-        role: 'assistant',
+        role: 'assistant' as const,
         content: [
-          { type: 'text', text: 'I will call a tool now.' },
-          { type: 'tool-call', toolCallId: 'call_2', toolName: 'searchDocs', input: { q: 'usage examples' } },
+          { type: 'text' as const, text: 'I will call a tool now.' },
+          { type: 'tool-call' as const, toolCallId: 'call_2', toolName: 'searchDocs', input: { q: 'usage examples' } },
         ],
       },
       {
-        role: 'tool',
+        role: 'tool' as const,
         content: [
           {
-            type: 'tool-result',
+            type: 'tool-result' as const,
             toolCallId: 'call_2',
             toolName: 'searchDocs',
-            result: { hits: ['a.ts', 'b.ts'] },
+            output: { type: 'json' as const, value: { hits: ['a.ts', 'b.ts'] } },
           },
         ],
       },
-      { role: 'assistant', content: [{ type: 'text', text: 'Done.' }] },
-    ];
+      { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'Done.' }] },
+    ] as Parameters<typeof convertPrompt>[0];
     const snapshot = JSON.parse(JSON.stringify(prompt));
 
     const result = convertPrompt(prompt);
@@ -99,5 +99,135 @@ describe('convertPrompt', () => {
       { role: 2, content: 'Done.' },
     ]);
     expect(prompt).toEqual(snapshot);
+  });
+
+  it('tool-result with json output serializes value to JSON', () => {
+    const prompt = [
+      {
+        role: 'tool' as const,
+        content: [
+          {
+            type: 'tool-result' as const,
+            toolCallId: 'call_json',
+            toolName: 'searchTool',
+            output: { type: 'json' as const, value: { files: ['x.ts', 'y.ts'], count: 2 } },
+          },
+        ],
+      },
+    ] as Parameters<typeof convertPrompt>[0];
+
+    const result = convertPrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 4,
+        content: '{"files":["x.ts","y.ts"],"count":2}',
+        metadata: { refCallId: 'call_json' },
+      },
+    ]);
+  });
+
+  it('tool-result with text output uses string directly', () => {
+    const prompt = [
+      {
+        role: 'tool' as const,
+        content: [
+          {
+            type: 'tool-result' as const,
+            toolCallId: 'call_text',
+            toolName: 'readFile',
+            output: { type: 'text' as const, value: 'Operation completed successfully' },
+          },
+        ],
+      },
+    ] as Parameters<typeof convertPrompt>[0];
+
+    const result = convertPrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 4,
+        content: 'Operation completed successfully',
+        metadata: { refCallId: 'call_text' },
+      },
+    ]);
+  });
+
+  it('tool-result with error-text output serializes error message', () => {
+    const prompt = [
+      {
+        role: 'tool' as const,
+        content: [
+          {
+            type: 'tool-result' as const,
+            toolCallId: 'call_error',
+            toolName: 'executeCommand',
+            output: { type: 'error-text' as const, value: 'Tool execution failed: timeout' },
+          },
+        ],
+      },
+    ] as Parameters<typeof convertPrompt>[0];
+
+    const result = convertPrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 4,
+        content: 'Tool execution failed: timeout',
+        metadata: { refCallId: 'call_error' },
+      },
+    ]);
+  });
+
+  it('tool-result with execution-denied output includes reason', () => {
+    const prompt = [
+      {
+        role: 'tool' as const,
+        content: [
+          {
+            type: 'tool-result' as const,
+            toolCallId: 'call_denied',
+            toolName: 'dangerousAction',
+            output: { type: 'execution-denied' as const, reason: 'User rejected tool execution' },
+          },
+        ],
+      },
+    ] as Parameters<typeof convertPrompt>[0];
+
+    const result = convertPrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 4,
+        content: '{"type":"execution-denied","reason":"User rejected tool execution"}',
+        metadata: { refCallId: 'call_denied' },
+      },
+    ]);
+  });
+
+  it('tool-result with execution-denied output handles missing reason', () => {
+    const prompt = [
+      {
+        role: 'tool' as const,
+        content: [
+          {
+            type: 'tool-result' as const,
+            toolCallId: 'call_denied_no_reason',
+            toolName: 'someTool',
+            output: { type: 'execution-denied' as const },
+          },
+        ],
+      },
+    ] as Parameters<typeof convertPrompt>[0];
+
+    const result = convertPrompt(prompt);
+
+    expect(result).toEqual([
+      {
+        role: 4,
+        content: '{"type":"execution-denied"}',
+        metadata: { refCallId: 'call_denied_no_reason' },
+      },
+    ]);
   });
 });

@@ -30,7 +30,12 @@ describe('convertResponse', () => {
         input: { query: 'prompt converter' },
       },
       { type: 'text', text: ' between ' },
-      { type: 'text', text: 'final answer' },
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_2',
+        toolName: 'answer',
+        input: { answer: 'final answer' },
+      },
       { type: 'text', text: ' after' },
     ]);
   });
@@ -67,7 +72,14 @@ describe('convertResponse', () => {
 
     const result: TestContent[] = convertResponse(payload.toBuffer());
 
-    expect(result).toEqual([{ type: 'text', text: 'final answer' }]);
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'answer',
+        input: { answer: 'final answer' },
+      },
+    ]);
   });
 
   it('protobuf payload - ignores metadata strings and keeps main text field', () => {
@@ -148,6 +160,19 @@ describe('convertResponse', () => {
         toolCallId: 'toolcall_1',
         toolName: 'custom_tool',
         input: { key: 'value' },
+      },
+    ]);
+  });
+
+  it('handles OpenAI-style with string name "answer" - emits as tool-call', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":"answer","parameters":{"answer":"final answer"}}}{}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'toolcall_1',
+        toolName: 'answer',
+        input: { answer: 'final answer' },
       },
     ]);
   });
