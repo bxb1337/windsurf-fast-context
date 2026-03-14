@@ -55,12 +55,12 @@ export interface LanguageModelV3StreamResult {
   stream: ReadableStream<LanguageModelV3StreamPart>
 }
 
+// For streaming: LanguageModelV3ToolCall.input is string (stringified JSON)
 interface LanguageModelV3ToolCallContent {
   type: 'tool-call'
-  toolCallType: 'function'
   toolCallId: string
   toolName: string
-  input: unknown
+  input: string
 }
 
 type GenerateContentPart =
@@ -94,17 +94,17 @@ type LanguageModelV3StreamPart =
     }
   | {
       type: 'tool-input-start'
-      toolCallId: string
+      id: string
       toolName: string
     }
   | {
       type: 'tool-input-delta'
-      toolCallId: string
+      id: string
       delta: string
     }
   | {
       type: 'tool-input-end'
-      toolCallId: string
+      id: string
     }
   | LanguageModelV3ToolCallContent
   | {
@@ -291,17 +291,17 @@ export class DevstralLanguageModel {
 
                   safeEnqueue(controller, {
                     type: 'tool-input-start',
-                    toolCallId: part.toolCallId,
+                    id: part.toolCallId,
                     toolName: part.toolName,
                   })
                   safeEnqueue(controller, {
                     type: 'tool-input-delta',
-                    toolCallId: part.toolCallId,
-                    delta: JSON.stringify(part.input),
+                    id: part.toolCallId,
+                    delta: part.input,
                   })
                   safeEnqueue(controller, {
                     type: 'tool-input-end',
-                    toolCallId: part.toolCallId,
+                    id: part.toolCallId,
                   })
                   safeEnqueue(controller, part)
                 }
@@ -433,10 +433,9 @@ function toV3Content(parts: LanguageModelV3Content[]): GenerateContentPart[] {
     if (part.type === 'tool-call') {
       return {
         type: 'tool-call',
-        toolCallType: 'function',
         toolCallId: part.toolCallId,
         toolName: part.toolName,
-        input: part.input,
+        input: JSON.stringify(part.input),
       }
     }
 

@@ -248,10 +248,9 @@ describe('DevstralLanguageModel doGenerate', () => {
     expect(result.content).toEqual([
       {
         type: 'tool-call',
-        toolCallType: 'function',
         toolCallId: 'toolcall_1',
         toolName: 'searchRepo',
-        input: { query: 'jwt manager' },
+        input: '{"query":"jwt manager"}',
       },
     ])
 
@@ -444,10 +443,9 @@ describe('DevstralLanguageModel doStream', () => {
     expect(parts[3]).toMatchObject({ type: 'tool-input-delta', delta: '{"query":"jwt manager"}' })
     expect(parts[5]).toEqual({
       type: 'tool-call',
-      toolCallType: 'function',
       toolCallId: 'toolcall_1',
       toolName: 'searchRepo',
-      input: { query: 'jwt manager' },
+      input: '{"query":"jwt manager"}',
     })
   })
 
