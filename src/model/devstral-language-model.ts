@@ -85,7 +85,7 @@ export class DevstralLanguageModel implements LanguageModelV3 {
       headers,
     )
 
-    const responsePayloads = connectFrameDecode(responseFrame)
+    const { payloads: responsePayloads } = connectFrameDecode(responseFrame)
     const payloads = responsePayloads.length > 0 ? responsePayloads : [responseFrame]
     const content = payloads.flatMap((payload) => toV3Content(convertResponse(payload)))
     const unified: LanguageModelV3FinishReason['unified'] = content.some((part) => part.type === 'tool-call')
@@ -155,7 +155,7 @@ export class DevstralLanguageModel implements LanguageModelV3 {
             safeEnqueue(controller, { type: 'stream-start', warnings: [] })
             safeEnqueue(controller, { type: 'response-metadata', modelId: this.modelId })
 
-            while (!isAborted(options.abortSignal)) {
+            outerLoop: while (!isAborted(options.abortSignal)) {
               const next = await reader.read()
               if (next.done) {
                 break
@@ -216,6 +216,10 @@ export class DevstralLanguageModel implements LanguageModelV3 {
                   })
                   safeEnqueue(controller, part)
                 }
+
+                if (frameResult.isEndStream) {
+                  break outerLoop
+                }
               }
             }
 
@@ -267,7 +271,7 @@ const CONNECT_FRAME_HEADER_BYTES = 5
 
 function readNextConnectFrame(
   buffer: Buffer<ArrayBufferLike>,
-): { payload: Buffer<ArrayBufferLike>; rest: Buffer<ArrayBufferLike> } | null {
+): { payload: Buffer<ArrayBufferLike>; rest: Buffer<ArrayBufferLike>; isEndStream: boolean } | null {
   if (buffer.length < CONNECT_FRAME_HEADER_BYTES) {
     return null
   }
@@ -279,11 +283,12 @@ function readNextConnectFrame(
   }
 
   const frame = buffer.subarray(0, frameLength)
-  const decoded = connectFrameDecode(frame)
+  const { payloads, isEndStream } = connectFrameDecode(frame)
 
   return {
-    payload: decoded[0] ?? Buffer.alloc(0),
+    payload: payloads[0] ?? Buffer.alloc(0),
     rest: buffer.subarray(frameLength),
+    isEndStream,
   }
 }
 

@@ -1,7 +1,8 @@
 import { gunzipSync, gzipSync } from 'node:zlib';
 
 const FRAME_HEADER_SIZE = 5;
-const FLAG_COMPRESSED = 1;
+export const FLAG_COMPRESSED = 1;
+export const FLAG_END_STREAM = 2;
 
 /**
  * Encode a protobuf payload into a Connect-RPC frame.
@@ -22,9 +23,10 @@ export function connectFrameEncode(payload: Buffer, compress = true): Buffer {
   return frame;
 }
 
-export function connectFrameDecode(buffer: Buffer): Buffer[] {
+export function connectFrameDecode(buffer: Buffer): { payloads: Buffer[]; isEndStream: boolean } {
   const decoded: Buffer[] = [];
   let offset = 0;
+  let isEndStream = false;
 
   while (offset + FRAME_HEADER_SIZE <= buffer.length) {
     const flags = buffer.readUInt8(offset);
@@ -37,9 +39,14 @@ export function connectFrameDecode(buffer: Buffer): Buffer[] {
     }
 
     const payload = buffer.subarray(payloadStart, payloadEnd);
-    decoded.push(flags === FLAG_COMPRESSED ? gunzipSync(payload) : Buffer.from(payload));
+    decoded.push((flags & FLAG_COMPRESSED) !== 0 ? gunzipSync(payload) : Buffer.from(payload));
+    
+    if ((flags & FLAG_END_STREAM) !== 0) {
+      isEndStream = true;
+    }
+    
     offset = payloadEnd;
   }
 
-  return decoded;
+  return { payloads: decoded, isEndStream };
 }

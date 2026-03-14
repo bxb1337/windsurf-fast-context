@@ -94,8 +94,8 @@ function waitFor(ms: number): Promise<void> {
 
 function decodeRequestPayload(body: Buffer): Buffer {
   // Body is now a connect frame directly (gzip is inside the frame, not outside)
-  const decodedFrames = connectFrameDecode(body)
-  return decodedFrames[0] ?? Buffer.alloc(0)
+  const { payloads } = connectFrameDecode(body)
+  return payloads[0] ?? Buffer.alloc(0)
 }
 
 function extractToolsPayload(strings: string[]): string | undefined {

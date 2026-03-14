@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -18,28 +19,28 @@ describe('connectFrameEncode', () => {
     expect(encoded.readUInt8(0)).toBe(0);
     expect(encoded.readUInt32BE(1)).toBe(payloadHello.length);
     expect(encoded.subarray(5)).toEqual(payloadHello);
-    expect(connectFrameDecode(encoded)).toEqual([payloadHello]);
+    expect(connectFrameDecode(encoded)).toEqual({ payloads: [payloadHello], isEndStream: false });
   });
 
   it('gzip roundtrip uses compressed frame and decodes back to source payload', () => {
     const encoded = connectFrameEncode(payloadWorld, true);
 
     expect(encoded.readUInt8(0)).toBe(1);
-    expect(connectFrameDecode(encoded)).toEqual([payloadWorld]);
+    expect(connectFrameDecode(encoded)).toEqual({ payloads: [payloadWorld], isEndStream: false });
   });
 });
 
 describe('connectFrameDecode fixtures', () => {
   it('decodes frame-simple fixture payload', () => {
-    expect(connectFrameDecode(fixtureSimpleFrame)).toEqual([payloadHello]);
+    expect(connectFrameDecode(fixtureSimpleFrame)).toEqual({ payloads: [payloadHello], isEndStream: false });
   });
 
   it('decodes gzip fixture payload', () => {
-    expect(connectFrameDecode(fixtureGzipFrame)).toEqual([payloadWorld]);
+    expect(connectFrameDecode(fixtureGzipFrame)).toEqual({ payloads: [payloadWorld], isEndStream: false });
   });
 
   it('decodes multiple concatenated frames in order', () => {
-    expect(connectFrameDecode(fixtureMultiFrame)).toEqual([payloadHello, payloadHello]);
+    expect(connectFrameDecode(fixtureMultiFrame)).toEqual({ payloads: [payloadHello, payloadHello], isEndStream: false });
   });
 });
 
@@ -77,7 +78,6 @@ describe('connectFrameDecode isEndStream', () => {
 
     const result = connectFrameDecode(frame);
 
-    // RED: This will fail because connectFrameDecode returns Buffer[], not { payloads, isEndStream }
     expect(result).toHaveProperty('payloads');
     expect(result).toHaveProperty('isEndStream');
     expect(result.payloads).toEqual([payloadHello]);
@@ -86,16 +86,17 @@ describe('connectFrameDecode isEndStream', () => {
 
   it('returns isEndStream: false for flags=1 (compressed only)', () => {
     // flags=1: compressed but not end stream
-    const frame = Buffer.allocUnsafe(5 + payloadHello.length);
+    const gzipped = gzipSync(payloadHello);
+    const frame = Buffer.allocUnsafe(5 + gzipped.length);
     frame.writeUInt8(FLAG_COMPRESSED, 0); // flags = 1
-    frame.writeUInt32BE(payloadHello.length, 1);
-    payloadHello.copy(frame, 5);
+    frame.writeUInt32BE(gzipped.length, 1);
+    gzipped.copy(frame, 5);
 
     const result = connectFrameDecode(frame);
 
-    // RED: This will fail because connectFrameDecode returns Buffer[], not { payloads, isEndStream }
     expect(result).toHaveProperty('payloads');
     expect(result).toHaveProperty('isEndStream');
+    expect(result.payloads).toEqual([payloadHello]);
     expect(result.isEndStream).toBe(false);
   });
 
@@ -108,7 +109,6 @@ describe('connectFrameDecode isEndStream', () => {
 
     const result = connectFrameDecode(frame);
 
-    // RED: This will fail because connectFrameDecode returns Buffer[], not { payloads, isEndStream }
     expect(result).toHaveProperty('payloads');
     expect(result).toHaveProperty('isEndStream');
     expect(result.payloads).toEqual([payloadHello]);
@@ -117,16 +117,17 @@ describe('connectFrameDecode isEndStream', () => {
 
   it('returns isEndStream: true for flags=3 (compressed + end stream)', () => {
     // flags=3: both compressed and end stream
-    const frame = Buffer.allocUnsafe(5 + payloadHello.length);
+    const gzipped = gzipSync(payloadHello);
+    const frame = Buffer.allocUnsafe(5 + gzipped.length);
     frame.writeUInt8(FLAG_COMPRESSED | FLAG_END_STREAM, 0); // flags = 3
-    frame.writeUInt32BE(payloadHello.length, 1);
-    payloadHello.copy(frame, 5);
+    frame.writeUInt32BE(gzipped.length, 1);
+    gzipped.copy(frame, 5);
 
     const result = connectFrameDecode(frame);
 
-    // RED: This will fail because connectFrameDecode returns Buffer[], not { payloads, isEndStream }
     expect(result).toHaveProperty('payloads');
     expect(result).toHaveProperty('isEndStream');
+    expect(result.payloads).toEqual([payloadHello]);
     expect(result.isEndStream).toBe(true);
   });
 });
