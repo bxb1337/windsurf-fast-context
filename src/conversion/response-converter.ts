@@ -19,11 +19,6 @@ const TOOL_CALL_PREFIX = '[TOOL_CALLS]';
 const ARGS_PREFIX = '[ARGS]';
 const STOP_TOKEN = '</s>';
 
-const EMPTY_TOOL_CALLS_PATTERN = /TOOL_CALLS\d*(?:<\/s>)?\s*(?:\{\s*\}\s*)+/g;
-
-// OpenAI-style TOOL_CALLS format: TOOL_CALLS{"type":"function","function":{"name":3,...}}{}...
-const OPENAI_TOOL_CALLS_PATTERN = /^TOOL_CALLS(\{[\s\S]*\}\s*)+\s*$/;
-
 interface OpenAIToolCall {
   type: 'function';
   function: {
@@ -330,8 +325,6 @@ function decodeResponseText(buffer: Buffer): string {
 
 export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
   let responseText = decodeResponseText(buffer)
-  
-  responseText = responseText.replace(EMPTY_TOOL_CALLS_PATTERN, '')
   responseText = responseText.replace(STOP_TOKEN, '')
 
   const openaiToolCalls = parseOpenAIToolCalls(responseText);

@@ -88,85 +88,10 @@ describe('convertResponse', () => {
     expect(result).toEqual([{ type: 'text', text: 'hello from gzip' }]);
   });
 
-  it('strips empty TOOL_CALLS markers with stop token', () => {
-    const input = 'Hello world TOOL_CALLS0</s>{}';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Hello world ' }]);
-  });
-
-  it('strips empty TOOL_CALLS markers without stop token', () => {
-    const input = 'Hello world TOOL_CALLS1{}';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Hello world ' }]);
-  });
-
-  it('strips empty TOOL_CALLS markers with whitespace', () => {
-    const input = 'Text TOOL_CALLS2{   } more text';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Text more text' }]);
-  });
-
   it('strips standalone stop token', () => {
     const input = 'Hello world</s>';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
     expect(result).toEqual([{ type: 'text', text: 'Hello world' }]);
-  });
-
-  it('handles TOOL_CALLS with number prefix before stop token', () => {
-    const input = 'Text before TOOL_CALLS1</s>{} text after';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Text before text after' }]);
-  });
-
-  it('strips TOOL_CALLS with double empty braces', () => {
-    const input = 'Hello world TOOL_CALLS1{}{}';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Hello world ' }]);
-  });
-
-  it('strips TOOL_CALLS with triple empty braces', () => {
-    const input = 'Response TOOL_CALLS2{}{}{} end';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Response end' }]);
-  });
-
-  it('strips TOOL_CALLS with stop token and multiple braces', () => {
-    const input = 'Text TOOL_CALLS0</s>{}{} more text';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'Text more text' }]);
-  });
-
-  it('handles empty marker followed by real tool call', () => {
-    const input = 'TOOL_CALLS0{} [TOOL_CALLS]searchDocs[ARGS]{"query":"test"}';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([
-      {
-        type: 'tool-call',
-        toolCallId: 'toolcall_1',
-        toolName: 'searchDocs',
-        input: { query: 'test' },
-      },
-    ]);
-  });
-
-  it('handles real tool call followed by empty marker', () => {
-    const input = '[TOOL_CALLS]searchDocs[ARGS]{"query":"test"} TOOL_CALLS1{} done';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([
-      {
-        type: 'tool-call',
-        toolCallId: 'toolcall_1',
-        toolName: 'searchDocs',
-        input: { query: 'test' },
-      },
-      { type: 'text', text: ' done' },
-    ]);
-  });
-
-  it('handles empty marker adjacent to real tool call', () => {
-    const input = 'TOOL_CALLS0{}[TOOL_CALLS]answer[ARGS]{"answer":"result"}';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: 'result' }]);
   });
 
   it('parses OpenAI-style TOOL_CALLS with numeric IDs', () => {
