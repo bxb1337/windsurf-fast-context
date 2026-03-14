@@ -98,6 +98,10 @@ function decodeRequestPayload(body: Buffer): Buffer {
   return decodedFrames[0] ?? Buffer.alloc(0)
 }
 
+function extractToolsPayload(strings: string[]): string | undefined {
+  return strings.find((value) => value.startsWith('[{"type":"function"'))
+}
+
 async function collectStreamParts(stream: ReadableStream<unknown>): Promise<Array<{ type: string; [key: string]: unknown }>> {
   const reader = stream.getReader()
   const parts: Array<{ type: string; [key: string]: unknown }> = []
@@ -185,7 +189,7 @@ describe('DevstralLanguageModel doGenerate', () => {
     })
 
     expect(result.content).toEqual([{ type: 'text', text: 'generated answer' }])
-    expect(result.finishReason).toBe('stop')
+    expect(result.finishReason).toEqual({ unified: 'stop', raw: undefined })
     expect(result.usage).toEqual({
       inputTokens: {
         total: undefined,
@@ -211,7 +215,7 @@ describe('DevstralLanguageModel doGenerate', () => {
     expect(combined).toContain('Find auth logic.')
   })
 
-  it('generate request with tool markers returns tool-call content parts', async () => {
+  it('doGenerate accepts function tools array with inputSchema', async () => {
     const requestBodies: Buffer[] = []
     const jwt = makeJwt(4_200_000_000, 'tools')
     const fakeFetch: FetchLike = async (input, init) => {
@@ -231,10 +235,12 @@ describe('DevstralLanguageModel doGenerate', () => {
 
     const result = await model.doGenerate({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'Inspect jwt manager.' }] }],
-      tools: {
-        searchRepo: {
+      tools: [
+        {
+          type: 'function',
+          name: 'searchRepo',
           description: 'Search repository files',
-          parameters: {
+          inputSchema: {
             type: 'object',
             properties: {
               query: { type: 'string' },
@@ -242,7 +248,7 @@ describe('DevstralLanguageModel doGenerate', () => {
             required: ['query'],
           },
         },
-      },
+      ],
     })
 
     expect(result.content).toEqual([
@@ -253,14 +259,111 @@ describe('DevstralLanguageModel doGenerate', () => {
         input: '{"query":"jwt manager"}',
       },
     ])
+    expect(result.finishReason).toEqual({ unified: 'tool-calls', raw: undefined })
 
     const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
-    const combined = strings.join('\n')
+    const toolsPayload = extractToolsPayload(strings)
+    expect(toolsPayload).toBeDefined()
 
-    expect(combined).toContain('searchRepo')
-    expect(combined).toContain('Search repository files')
-    expect(combined).toContain('Inspect jwt manager.')
-    expect(combined).toContain('query')
+    const parsedTools = JSON.parse(toolsPayload ?? '[]') as Array<{
+      type: string
+      function: {
+        name: string
+        description: string
+        parameters: unknown
+      }
+    }>
+
+    expect(parsedTools).toEqual([
+      {
+        type: 'function',
+        function: {
+          name: 'searchRepo',
+          description: 'Search repository files',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+    ])
+  })
+
+  it('filters provider tools from tools array serialization', async () => {
+    const requestBodies: Buffer[] = []
+    const jwt = makeJwt(4_200_000_001, 'provider-tools')
+    const fakeFetch: FetchLike = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith('/GetUserJwt')) {
+        return new Response(Uint8Array.from(Buffer.from(jwt, 'utf8')), { status: 200 })
+      }
+
+      requestBodies.push(bufferFromBody(init?.body))
+      return new Response(Uint8Array.from(connectFrameEncode(Buffer.from('ok', 'utf8'))), { status: 200 })
+    }
+
+    const model = new DevstralLanguageModel({ apiKey: 'tools-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Filter provider tools.' }] }],
+      tools: [
+        {
+          type: 'function',
+          name: 'searchRepo',
+          description: 'Search repository files',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string' },
+            },
+            required: ['query'],
+          },
+        },
+        {
+          type: 'provider',
+          id: 'windsurf.restricted_exec',
+          name: 'restricted_exec',
+          args: { mode: 'read-only' },
+        },
+      ],
+    })
+
+    const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
+    const toolsPayload = extractToolsPayload(strings)
+    expect(toolsPayload).toBeDefined()
+
+    const parsedTools = JSON.parse(toolsPayload ?? '[]') as Array<{ function: { name: string } }>
+    expect(parsedTools).toHaveLength(1)
+    expect(parsedTools[0]).toMatchObject({ function: { name: 'searchRepo' } })
+  })
+
+  it('handles empty tools array without serializing tool payload', async () => {
+    const requestBodies: Buffer[] = []
+    const jwt = makeJwt(4_200_000_002, 'empty-tools')
+    const fakeFetch: FetchLike = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith('/GetUserJwt')) {
+        return new Response(Uint8Array.from(Buffer.from(jwt, 'utf8')), { status: 200 })
+      }
+
+      requestBodies.push(bufferFromBody(init?.body))
+      return new Response(Uint8Array.from(connectFrameEncode(Buffer.from('ok', 'utf8'))), { status: 200 })
+    }
+
+    const model = new DevstralLanguageModel({ apiKey: 'tools-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'No tools this turn.' }] }],
+      tools: [],
+    })
+
+    const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
+    expect(extractToolsPayload(strings)).toBeUndefined()
   })
 })
 
@@ -369,8 +472,10 @@ describe('DevstralLanguageModel doStream', () => {
       expect(parts[4]).toMatchObject({ type: 'text-delta', delta: 'world' })
       expect(parts[6]).toEqual({
         type: 'finish',
-        finishReason: 'stop',
-        rawFinishReason: 'stop',
+        finishReason: {
+          unified: 'stop',
+          raw: undefined,
+        },
         usage: {
           inputTokens: {
             total: undefined,
@@ -416,10 +521,12 @@ describe('DevstralLanguageModel doStream', () => {
 
     const result = await model.doStream({
       prompt: [{ role: 'user', content: [{ type: 'text', text: 'Call tools.' }] }],
-      tools: {
-        searchRepo: {
+      tools: [
+        {
+          type: 'function',
+          name: 'searchRepo',
           description: 'Search repository files',
-          parameters: {
+          inputSchema: {
             type: 'object',
             properties: {
               query: { type: 'string' },
@@ -427,7 +534,7 @@ describe('DevstralLanguageModel doStream', () => {
             required: ['query'],
           },
         },
-      },
+      ],
     })
     const parts = await collectStreamParts(result.stream)
 
@@ -446,6 +553,26 @@ describe('DevstralLanguageModel doStream', () => {
       toolCallId: 'toolcall_1',
       toolName: 'searchRepo',
       input: '{"query":"jwt manager"}',
+    })
+    expect(parts[6]).toEqual({
+      type: 'finish',
+      finishReason: {
+        unified: 'tool-calls',
+        raw: undefined,
+      },
+      usage: {
+        inputTokens: {
+          total: undefined,
+          noCache: undefined,
+          cacheRead: undefined,
+          cacheWrite: undefined,
+        },
+        outputTokens: {
+          total: undefined,
+          text: undefined,
+          reasoning: undefined,
+        },
+      },
     })
   })
 

@@ -1,10 +1,22 @@
+import type {
+  LanguageModelV3,
+  LanguageModelV3CallOptions,
+  LanguageModelV3Content,
+  LanguageModelV3FinishReason,
+  LanguageModelV3FunctionTool,
+  LanguageModelV3GenerateResult,
+  LanguageModelV3StreamPart,
+  LanguageModelV3StreamResult,
+  LanguageModelV3Usage,
+} from '@ai-sdk/provider'
+
 import { randomUUID } from 'node:crypto'
 import { arch, cpus, hostname, platform, release, totalmem, version as osVersion } from 'node:os'
 
 import { resolveApiKey } from '../auth/api-key.js'
 import { JwtManager } from '../auth/jwt-manager.js'
-import { convertPrompt, type LanguageModelV3Prompt } from '../conversion/prompt-converter.js'
-import { convertResponse, type LanguageModelV3Content } from '../conversion/response-converter.js'
+import { convertPrompt } from '../conversion/prompt-converter.js'
+import { convertResponse, type LanguageModelV3Content as ParsedLanguageModelV3Content } from '../conversion/response-converter.js'
 import { connectFrameDecode, connectFrameEncode } from '../protocol/connect-frame.js'
 import { ProtobufEncoder } from '../protocol/protobuf.js'
 import { DevstralTransport } from '../transport/http.js'
@@ -21,122 +33,13 @@ const WS_LS_VER = process.env.WS_LS_VER ?? '1.9544.35'
 const SENTRY_PUBLIC_KEY = 'b813f73488da69eedec534dba1029111'
 const CONNECT_USER_AGENT = 'connect-go/1.18.1 (go1.25.5)'
 
-export interface LanguageModelV3FunctionTool {
-  description?: string
-  parameters?: unknown
-}
-
-export interface LanguageModelV3CallOptions {
-  prompt: LanguageModelV3Prompt
-  tools?: Record<string, LanguageModelV3FunctionTool>
-  abortSignal?: AbortSignal
-}
-
-export interface LanguageModelV3GenerateResult {
-  content: GenerateContentPart[]
-  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other'
-  usage: {
-    inputTokens: {
-      total: number | undefined
-      noCache: number | undefined
-      cacheRead: number | undefined
-      cacheWrite: number | undefined
-    }
-    outputTokens: {
-      total: number | undefined
-      text: number | undefined
-      reasoning: number | undefined
-    }
-  }
-  warnings: unknown[]
-}
-
-export interface LanguageModelV3StreamResult {
-  stream: ReadableStream<LanguageModelV3StreamPart>
-}
-
-// For streaming: LanguageModelV3ToolCall.input is string (stringified JSON)
-interface LanguageModelV3ToolCallContent {
-  type: 'tool-call'
-  toolCallId: string
-  toolName: string
-  input: string
-}
-
-type GenerateContentPart =
-  | {
-      type: 'text'
-      text: string
-    }
-  | LanguageModelV3ToolCallContent
-
-type LanguageModelV3StreamPart =
-  | {
-      type: 'stream-start'
-      warnings: unknown[]
-    }
-  | {
-      type: 'response-metadata'
-      modelId: string
-    }
-  | {
-      type: 'text-start'
-      id: string
-    }
-  | {
-      type: 'text-delta'
-      id: string
-      delta: string
-    }
-  | {
-      type: 'text-end'
-      id: string
-    }
-  | {
-      type: 'tool-input-start'
-      id: string
-      toolName: string
-    }
-  | {
-      type: 'tool-input-delta'
-      id: string
-      delta: string
-    }
-  | {
-      type: 'tool-input-end'
-      id: string
-    }
-  | LanguageModelV3ToolCallContent
-  | {
-      type: 'error'
-      error: unknown
-    }
-  | {
-      type: 'finish'
-      finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other'
-      rawFinishReason: string | undefined
-      usage: {
-        inputTokens: {
-          total: number | undefined
-          noCache: number | undefined
-          cacheRead: number | undefined
-          cacheWrite: number | undefined
-        }
-        outputTokens: {
-          total: number | undefined
-          text: number | undefined
-          reasoning: number | undefined
-        }
-      }
-    }
-
 export interface DevstralLanguageModelOptions extends WindsurfProviderOptions {
   modelId?: string
   transport?: DevstralTransport
   jwtManager?: JwtManager
 }
 
-export class DevstralLanguageModel {
+export class DevstralLanguageModel implements LanguageModelV3 {
   readonly specificationVersion = 'v3'
   readonly provider = 'windsurf'
   readonly modelId: string
@@ -185,10 +88,16 @@ export class DevstralLanguageModel {
     const responsePayloads = connectFrameDecode(responseFrame)
     const payloads = responsePayloads.length > 0 ? responsePayloads : [responseFrame]
     const content = payloads.flatMap((payload) => toV3Content(convertResponse(payload)))
+    const unified: LanguageModelV3FinishReason['unified'] = content.some((part) => part.type === 'tool-call')
+      ? 'tool-calls'
+      : 'stop'
 
     return {
       content,
-      finishReason: 'stop',
+      finishReason: {
+        unified,
+        raw: undefined,
+      },
       usage: emptyUsage(),
       warnings: [],
     }
@@ -227,6 +136,7 @@ export class DevstralLanguageModel {
 
           let textSegmentId: string | null = null
           let textSegmentCounter = 0
+          let hasToolCalls = false
           let pending: Buffer<ArrayBufferLike> = Buffer.alloc(0)
 
           const closeTextSegment = () => {
@@ -288,6 +198,7 @@ export class DevstralLanguageModel {
                   }
 
                   closeTextSegment()
+                  hasToolCalls = true
 
                   safeEnqueue(controller, {
                     type: 'tool-input-start',
@@ -314,10 +225,13 @@ export class DevstralLanguageModel {
             }
 
             closeTextSegment()
+            const unified: LanguageModelV3FinishReason['unified'] = hasToolCalls ? 'tool-calls' : 'stop'
             safeEnqueue(controller, {
               type: 'finish',
-              finishReason: 'stop',
-              rawFinishReason: 'stop',
+              finishReason: {
+                unified,
+                raw: undefined,
+              },
               usage: emptyUsage(),
             })
             safeClose(controller)
@@ -330,8 +244,10 @@ export class DevstralLanguageModel {
               })
               safeEnqueue(controller, {
                 type: 'finish',
-                finishReason: 'error',
-                rawFinishReason: 'error',
+                finishReason: {
+                  unified: 'error',
+                  raw: undefined,
+                },
                 usage: emptyUsage(),
               })
             }
@@ -400,19 +316,7 @@ function isAborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true
 }
 
-function emptyUsage(): {
-  inputTokens: {
-    total: number | undefined
-    noCache: number | undefined
-    cacheRead: number | undefined
-    cacheWrite: number | undefined
-  }
-  outputTokens: {
-    total: number | undefined
-    text: number | undefined
-    reasoning: number | undefined
-  }
-} {
+function emptyUsage(): LanguageModelV3Usage {
   return {
     inputTokens: {
       total: undefined,
@@ -428,26 +332,38 @@ function emptyUsage(): {
   }
 }
 
-function toV3Content(parts: LanguageModelV3Content[]): GenerateContentPart[] {
+type GeneratedContentPart =
+  | Extract<LanguageModelV3Content, { type: 'text' }>
+  | Extract<LanguageModelV3Content, { type: 'tool-call' }>
+
+function toV3Content(parts: ParsedLanguageModelV3Content[]): GeneratedContentPart[] {
   return parts.map((part) => {
-    if (part.type === 'tool-call') {
-      return {
-        type: 'tool-call',
-        toolCallId: part.toolCallId,
-        toolName: part.toolName,
-        input: JSON.stringify(part.input),
-      }
+    if (part.type !== 'tool-call') {
+      return part
     }
 
-    return part
+    const input = typeof part.input === 'string' ? part.input : JSON.stringify(part.input)
+
+    return {
+      type: 'tool-call',
+      toolCallId: part.toolCallId,
+      toolName: part.toolName,
+      input,
+    }
   })
+}
+
+type LanguageModelV3Tool = NonNullable<LanguageModelV3CallOptions['tools']>[number]
+
+function isFunctionTool(tool: LanguageModelV3Tool): tool is LanguageModelV3FunctionTool {
+  return tool.type === 'function'
 }
 
 function buildGenerateRequest(input: {
   apiKey: string
   jwt: string
   messages: DevstralMessage[]
-  tools?: Record<string, LanguageModelV3FunctionTool>
+  tools?: LanguageModelV3CallOptions['tools']
 }): Buffer {
   const request = new ProtobufEncoder()
   request.writeMessage(1, buildMetadata(input.apiKey, input.jwt))
@@ -456,14 +372,14 @@ function buildGenerateRequest(input: {
     request.writeMessage(2, buildMessage(message))
   }
 
-  // Tools are sent as a single JSON string at field 3 (not repeated messages)
-  if (input.tools && Object.keys(input.tools).length > 0) {
-    const toolsArray = Object.entries(input.tools).map(([name, tool]) => ({
+  const functionTools = input.tools?.filter(isFunctionTool) ?? []
+  if (functionTools.length > 0) {
+    const toolsArray = functionTools.map((tool) => ({
       type: 'function',
       function: {
-        name,
+        name: tool.name,
         description: tool.description ?? '',
-        parameters: tool.parameters ?? {},
+        parameters: tool.inputSchema,
       },
     }))
     request.writeString(3, JSON.stringify(toolsArray))
