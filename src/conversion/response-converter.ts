@@ -106,24 +106,6 @@ function pushText(parts: LanguageModelV3Content[], text: string): void {
   }
 }
 
-function extractAnswerText(args: unknown): string {
-  if (typeof args === 'string') {
-    return args;
-  }
-
-  if (args != null && typeof args === 'object') {
-    if ('answer' in args && typeof (args as { answer?: unknown }).answer === 'string') {
-      return (args as { answer: string }).answer;
-    }
-
-    if ('text' in args && typeof (args as { text?: unknown }).text === 'string') {
-      return (args as { text: string }).text;
-    }
-  }
-
-  return JSON.stringify(args);
-}
-
 function parseStringEnd(value: string, startIndex: number): number | null {
   let index = startIndex + 1;
   let escaping = false;
@@ -363,17 +345,13 @@ export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
       continue;
     }
 
-    if (toolName === 'answer') {
-      pushText(parts, extractAnswerText(parsedArgs.parsed));
-    } else {
-      toolCallCount += 1;
-      parts.push({
-        type: 'tool-call',
-        toolCallId: `toolcall_${toolCallCount}`,
-        toolName,
-        input: parsedArgs.parsed,
-      });
-    }
+    toolCallCount += 1;
+    parts.push({
+      type: 'tool-call',
+      toolCallId: `toolcall_${toolCallCount}`,
+      toolName,
+      input: parsedArgs.parsed,
+    });
 
     cursor = parsedArgs.endIndex;
   }
