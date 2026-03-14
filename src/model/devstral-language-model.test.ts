@@ -576,6 +576,91 @@ describe('DevstralLanguageModel doStream', () => {
     })
   })
 
+  it('stream terminates immediately on EndStreamResponse frame (flags=2)', async () => {
+    const jwt = makeJwt(4_300_000_003, 'end-stream-response')
+    const textFrame = connectFrameEncode(Buffer.from('hello world', 'utf8'))
+    const endStreamPayload = Buffer.alloc(0)
+    const endStreamFrame = Buffer.allocUnsafe(5 + endStreamPayload.length)
+    endStreamFrame.writeUInt8(2, 0)
+    endStreamFrame.writeUInt32BE(endStreamPayload.length, 1)
+    endStreamPayload.copy(endStreamFrame, 5)
+
+    let releaseHttpClose: (() => void) | undefined
+    const waitForHttpClose = new Promise<void>((resolve) => {
+      releaseHttpClose = resolve
+    })
+
+    const fakeFetch: FetchLike = async (input) => {
+      const url = String(input)
+
+      if (url.endsWith('/GetUserJwt')) {
+        return new Response(Uint8Array.from(Buffer.from(jwt, 'utf8')), { status: 200 })
+      }
+
+      let sentTextFrame = false
+      let sentEndStreamFrame = false
+
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          async pull(controller) {
+            if (!sentTextFrame) {
+              controller.enqueue(Uint8Array.from(textFrame))
+              sentTextFrame = true
+              return
+            }
+            if (!sentEndStreamFrame) {
+              controller.enqueue(Uint8Array.from(endStreamFrame))
+              sentEndStreamFrame = true
+              return
+            }
+            await waitForHttpClose
+            controller.close()
+          },
+        }),
+        { status: 200 },
+      )
+    }
+
+    const model = new DevstralLanguageModel({
+      apiKey: 'end-stream-key',
+      fetch: fakeFetch,
+      baseURL: 'https://windsurf.test',
+    })
+
+    const result = await model.doStream({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Stream with end.' }] }],
+    })
+
+    const reader = result.stream.getReader()
+    const parts: Array<{ type: string; [key: string]: unknown }> = []
+
+    const resultType = await Promise.race([
+      (async () => {
+        while (true) {
+          const next = await reader.read()
+          if (next.done) {
+            break
+          }
+          parts.push(next.value as { type: string; [key: string]: unknown })
+        }
+        return 'completed' as const
+      })(),
+      waitFor(100).then(() => 'timed-out' as const),
+    ])
+
+    expect(resultType).toBe('completed')
+    expect(parts.map((p) => p.type)).toEqual([
+      'stream-start',
+      'response-metadata',
+      'text-start',
+      'text-delta',
+      'text-end',
+      'finish',
+    ])
+
+    releaseHttpClose?.()
+  })
+
   it('abort stops stream mid-response', async () => {
     const controller = new AbortController()
     const jwt = makeJwt(4_300_000_002, 'abort')
