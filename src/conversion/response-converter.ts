@@ -29,12 +29,18 @@ interface OpenAIToolCall {
 }
 
 function parseOpenAIToolCalls(responseText: string): LanguageModelV2Content[] | null {
-  if (!responseText.startsWith('TOOL_CALLS')) {
+  // Support both [TOOL_CALLS]{...} and TOOL_CALLS{...} formats
+  let jsonPart = responseText;
+  
+  if (jsonPart.startsWith('[TOOL_CALLS]')) {
+    jsonPart = jsonPart.slice('[TOOL_CALLS]'.length);
+  } else if (jsonPart.startsWith('TOOL_CALLS')) {
+    jsonPart = jsonPart.slice('TOOL_CALLS'.length);
+  } else {
     return null;
   }
-
-  const jsonPart = responseText.slice('TOOL_CALLS'.length);
-  if (!jsonPart.startsWith('{')) {
+  
+  if (!jsonPart.startsWith('{') && !jsonPart.startsWith('[')) {
     return null;
   }
 
@@ -309,6 +315,7 @@ export function convertResponse(buffer: Buffer): LanguageModelV2Content[] {
   let responseText = decodeResponseText(buffer)
   responseText = responseText.replace(STOP_TOKEN, '')
 
+  // Try parsing as pure tool calls first (for backward compat)
   const openaiToolCalls = parseOpenAIToolCalls(responseText);
   if (openaiToolCalls) {
     return openaiToolCalls;
@@ -319,6 +326,7 @@ export function convertResponse(buffer: Buffer): LanguageModelV2Content[] {
   let toolCallCount = 0;
 
   while (cursor < responseText.length) {
+    // Try to find [TOOL_CALLS] marker
     const markerStart = responseText.indexOf(TOOL_CALL_PREFIX, cursor);
     if (markerStart === -1) {
       pushText(parts, responseText.slice(cursor));
@@ -327,14 +335,52 @@ export function convertResponse(buffer: Buffer): LanguageModelV2Content[] {
 
     pushText(parts, responseText.slice(cursor, markerStart));
 
-    const toolNameStart = markerStart + TOOL_CALL_PREFIX.length;
-    const argsStart = responseText.indexOf(ARGS_PREFIX, toolNameStart);
+    const afterMarker = responseText.slice(markerStart + TOOL_CALL_PREFIX.length);
+    
+    // Check if it's [TOOL_CALLS]{...} format (OpenAI-style)
+    if (afterMarker.startsWith('{') || afterMarker.startsWith('[')) {
+      const jsonResult = parseJsonValue(afterMarker, 0);
+      if (jsonResult) {
+        const parsed = jsonResult.parsed;
+        // Handle single object or array of objects
+        const items = Array.isArray(parsed) ? parsed : [parsed];
+        let foundToolCall = false;
+        
+        for (const item of items) {
+          if (item && typeof item === 'object' && item.type === 'function' && item.function) {
+            toolCallCount += 1;
+            const toolName = typeof item.function.name === 'string' 
+              ? item.function.name 
+              : mapToolIdToName(item.function.name);
+            parts.push({
+              type: 'tool-call',
+              toolCallId: `toolcall_${toolCallCount}`,
+              toolName,
+              input: item.function.parameters ?? {},
+            });
+            foundToolCall = true;
+          }
+        }
+        
+        if (foundToolCall) {
+          cursor = markerStart + TOOL_CALL_PREFIX.length + jsonResult.endIndex;
+          continue;
+        }
+      }
+      // Not a valid OpenAI format, treat as text
+      pushText(parts, responseText.slice(markerStart, markerStart + TOOL_CALL_PREFIX.length));
+      cursor = markerStart + TOOL_CALL_PREFIX.length;
+      continue;
+    }
+    
+    // Try [TOOL_CALLS]tool_name[ARGS]{...} format (marker format)
+    const argsStart = responseText.indexOf(ARGS_PREFIX, markerStart + TOOL_CALL_PREFIX.length);
     if (argsStart === -1) {
       pushText(parts, responseText.slice(markerStart));
       break;
     }
 
-    const toolName = responseText.slice(toolNameStart, argsStart);
+    const toolName = responseText.slice(markerStart + TOOL_CALL_PREFIX.length, argsStart);
     const parsedArgs = parseJsonValue(responseText, argsStart + ARGS_PREFIX.length);
 
     if (parsedArgs == null) {
