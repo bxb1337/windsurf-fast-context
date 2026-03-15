@@ -1,13 +1,11 @@
 import type {
-  LanguageModelV3,
-  LanguageModelV3CallOptions,
-  LanguageModelV3Content,
-  LanguageModelV3FinishReason,
-  LanguageModelV3FunctionTool,
-  LanguageModelV3GenerateResult,
-  LanguageModelV3StreamPart,
-  LanguageModelV3StreamResult,
-  LanguageModelV3Usage,
+  LanguageModelV2,
+  LanguageModelV2CallOptions,
+  LanguageModelV2Content,
+  LanguageModelV2FinishReason,
+  LanguageModelV2FunctionTool,
+  LanguageModelV2StreamPart,
+  LanguageModelV2Usage,
 } from '@ai-sdk/provider'
 
 import { randomUUID } from 'node:crypto'
@@ -16,7 +14,7 @@ import { arch, cpus, hostname, platform, release, totalmem, version as osVersion
 import { resolveApiKey } from '../auth/api-key.js'
 import { JwtManager } from '../auth/jwt-manager.js'
 import { convertPrompt } from '../conversion/prompt-converter.js'
-import { convertResponse, type LanguageModelV3Content as ParsedLanguageModelV3Content } from '../conversion/response-converter.js'
+import { convertResponse, type LanguageModelV2Content as ParsedLanguageModelV2Content } from '../conversion/response-converter.js'
 import { connectFrameDecode, connectFrameEncode } from '../protocol/connect-frame.js'
 import { ProtobufEncoder } from '../protocol/protobuf.js'
 import { DevstralTransport } from '../transport/http.js'
@@ -39,8 +37,11 @@ export interface DevstralLanguageModelOptions extends WindsurfProviderOptions {
   jwtManager?: JwtManager
 }
 
-export class DevstralLanguageModel implements LanguageModelV3 {
-  readonly specificationVersion = 'v3'
+type LanguageModelV2GenerateResult = Awaited<ReturnType<LanguageModelV2['doGenerate']>>
+type LanguageModelV2StreamResult = Awaited<ReturnType<LanguageModelV2['doStream']>>
+
+export class DevstralLanguageModel implements LanguageModelV2 {
+  readonly specificationVersion = 'v2'
   readonly provider = 'windsurf'
   readonly modelId: string
   readonly supportedUrls: Record<string, RegExp[]> = {}
@@ -65,7 +66,7 @@ export class DevstralLanguageModel implements LanguageModelV3 {
       })
   }
 
-  async doGenerate(options: LanguageModelV3CallOptions): Promise<LanguageModelV3GenerateResult> {
+  async doGenerate(options: LanguageModelV2CallOptions): Promise<LanguageModelV2GenerateResult> {
     const jwt = await this.jwtManager.getJwt(this.apiKey)
     const messages = convertPrompt(options.prompt)
     const requestPayload = buildGenerateRequest({
@@ -87,23 +88,20 @@ export class DevstralLanguageModel implements LanguageModelV3 {
 
     const { payloads: responsePayloads } = connectFrameDecode(responseFrame)
     const payloads = responsePayloads.length > 0 ? responsePayloads : [responseFrame]
-    const content = payloads.flatMap((payload) => toV3Content(convertResponse(payload)))
-    const unified: LanguageModelV3FinishReason['unified'] = content.some((part) => part.type === 'tool-call')
+    const content = payloads.flatMap((payload) => toV2Content(convertResponse(payload)))
+    const unified: LanguageModelV2FinishReason = content.some((part) => part.type === 'tool-call')
       ? 'tool-calls'
       : 'stop'
 
     return {
       content,
-      finishReason: {
-        unified,
-        raw: undefined,
-      },
+      finishReason: unified,
       usage: emptyUsage(),
       warnings: [],
     }
   }
 
-  async doStream(options: LanguageModelV3CallOptions): Promise<LanguageModelV3StreamResult> {
+  async doStream(options: LanguageModelV2CallOptions): Promise<LanguageModelV2StreamResult> {
     const jwt = await this.jwtManager.getJwt(this.apiKey)
     const messages = convertPrompt(options.prompt)
     const requestPayload = buildGenerateRequest({
@@ -125,7 +123,7 @@ export class DevstralLanguageModel implements LanguageModelV3 {
     )
 
     return {
-      stream: new ReadableStream<LanguageModelV3StreamPart>({
+      stream: new ReadableStream<LanguageModelV2StreamPart>({
         start: async (controller) => {
           const reader = byteStream.getReader()
           const abortHandler = () => {
@@ -174,7 +172,7 @@ export class DevstralLanguageModel implements LanguageModelV3 {
                 }
 
                 pending = frameResult.rest
-                const contentParts = toV3Content(convertResponse(frameResult.payload))
+                const contentParts = toV2Content(convertResponse(frameResult.payload))
 
                 for (const part of contentParts) {
                   if (isAborted(options.abortSignal)) {
@@ -229,13 +227,10 @@ export class DevstralLanguageModel implements LanguageModelV3 {
             }
 
             closeTextSegment()
-            const unified: LanguageModelV3FinishReason['unified'] = hasToolCalls ? 'tool-calls' : 'stop'
+            const unified: LanguageModelV2FinishReason = hasToolCalls ? 'tool-calls' : 'stop'
             safeEnqueue(controller, {
               type: 'finish',
-              finishReason: {
-                unified,
-                raw: undefined,
-              },
+              finishReason: unified,
               usage: emptyUsage(),
             })
             safeClose(controller)
@@ -248,10 +243,7 @@ export class DevstralLanguageModel implements LanguageModelV3 {
               })
               safeEnqueue(controller, {
                 type: 'finish',
-                finishReason: {
-                  unified: 'error',
-                  raw: undefined,
-                },
+                finishReason: 'error',
                 usage: emptyUsage(),
               })
             }
@@ -292,7 +284,7 @@ function readNextConnectFrame(
   }
 }
 
-function safeEnqueue(controller: ReadableStreamDefaultController<LanguageModelV3StreamPart>, part: LanguageModelV3StreamPart): void {
+function safeEnqueue(controller: ReadableStreamDefaultController<LanguageModelV2StreamPart>, part: LanguageModelV2StreamPart): void {
   if (isControllerClosed(controller)) {
     return
   }
@@ -300,7 +292,7 @@ function safeEnqueue(controller: ReadableStreamDefaultController<LanguageModelV3
   controller.enqueue(part)
 }
 
-function safeClose(controller: ReadableStreamDefaultController<LanguageModelV3StreamPart>): void {
+function safeClose(controller: ReadableStreamDefaultController<LanguageModelV2StreamPart>): void {
   if (isControllerClosed(controller)) {
     return
   }
@@ -308,7 +300,7 @@ function safeClose(controller: ReadableStreamDefaultController<LanguageModelV3St
   controller.close()
 }
 
-function isControllerClosed(controller: ReadableStreamDefaultController<LanguageModelV3StreamPart>): boolean {
+function isControllerClosed(controller: ReadableStreamDefaultController<LanguageModelV2StreamPart>): boolean {
   try {
     controller.desiredSize
     return false
@@ -321,27 +313,19 @@ function isAborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true
 }
 
-function emptyUsage(): LanguageModelV3Usage {
+function emptyUsage(): LanguageModelV2Usage {
   return {
-    inputTokens: {
-      total: undefined,
-      noCache: undefined,
-      cacheRead: undefined,
-      cacheWrite: undefined,
-    },
-    outputTokens: {
-      total: undefined,
-      text: undefined,
-      reasoning: undefined,
-    },
+    inputTokens: undefined,
+    outputTokens: undefined,
+    totalTokens: undefined,
   }
 }
 
 type GeneratedContentPart =
-  | Extract<LanguageModelV3Content, { type: 'text' }>
-  | Extract<LanguageModelV3Content, { type: 'tool-call' }>
+  | Extract<LanguageModelV2Content, { type: 'text' }>
+  | Extract<LanguageModelV2Content, { type: 'tool-call' }>
 
-function toV3Content(parts: ParsedLanguageModelV3Content[]): GeneratedContentPart[] {
+function toV2Content(parts: ParsedLanguageModelV2Content[]): GeneratedContentPart[] {
   return parts.map((part) => {
     if (part.type !== 'tool-call') {
       return part
@@ -358,9 +342,9 @@ function toV3Content(parts: ParsedLanguageModelV3Content[]): GeneratedContentPar
   })
 }
 
-type LanguageModelV3Tool = NonNullable<LanguageModelV3CallOptions['tools']>[number]
+type LanguageModelV2Tool = NonNullable<LanguageModelV2CallOptions['tools']>[number]
 
-function isFunctionTool(tool: LanguageModelV3Tool): tool is LanguageModelV3FunctionTool {
+function isFunctionTool(tool: LanguageModelV2Tool): tool is LanguageModelV2FunctionTool {
   return tool.type === 'function'
 }
 
@@ -368,7 +352,7 @@ function buildGenerateRequest(input: {
   apiKey: string
   jwt: string
   messages: DevstralMessage[]
-  tools?: LanguageModelV3CallOptions['tools']
+  tools?: LanguageModelV2CallOptions['tools']
 }): Buffer {
   const request = new ProtobufEncoder()
   request.writeMessage(1, buildMetadata(input.apiKey, input.jwt))

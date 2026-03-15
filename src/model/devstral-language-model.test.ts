@@ -181,7 +181,7 @@ describe('DevstralLanguageModel doGenerate', () => {
 
     const model = new DevstralLanguageModel({ apiKey: 'test-api-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
 
-    expect(model.specificationVersion).toBe('v3')
+    expect(model.specificationVersion).toBe('v2')
     expect(model.supportedUrls).toEqual({})
 
     const result = await model.doGenerate({
@@ -189,19 +189,11 @@ describe('DevstralLanguageModel doGenerate', () => {
     })
 
     expect(result.content).toEqual([{ type: 'text', text: 'generated answer' }])
-    expect(result.finishReason).toEqual({ unified: 'stop', raw: undefined })
+    expect(result.finishReason).toBe('stop')
     expect(result.usage).toEqual({
-      inputTokens: {
-        total: undefined,
-        noCache: undefined,
-        cacheRead: undefined,
-        cacheWrite: undefined,
-      },
-      outputTokens: {
-        total: undefined,
-        text: undefined,
-        reasoning: undefined,
-      },
+      inputTokens: undefined,
+      outputTokens: undefined,
+      totalTokens: undefined,
     })
 
     expect(calls).toHaveLength(2)
@@ -259,7 +251,7 @@ describe('DevstralLanguageModel doGenerate', () => {
         input: '{"query":"jwt manager"}',
       },
     ])
-    expect(result.finishReason).toEqual({ unified: 'tool-calls', raw: undefined })
+    expect(result.finishReason).toBe('tool-calls')
 
     const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
     const toolsPayload = extractToolsPayload(strings)
@@ -324,7 +316,7 @@ describe('DevstralLanguageModel doGenerate', () => {
           },
         },
         {
-          type: 'provider',
+          type: 'provider-defined',
           id: 'windsurf.restricted_exec',
           name: 'restricted_exec',
           args: { mode: 'read-only' },
@@ -472,22 +464,11 @@ describe('DevstralLanguageModel doStream', () => {
       expect(parts[4]).toMatchObject({ type: 'text-delta', delta: 'world' })
       expect(parts[6]).toEqual({
         type: 'finish',
-        finishReason: {
-          unified: 'stop',
-          raw: undefined,
-        },
+        finishReason: 'stop',
         usage: {
-          inputTokens: {
-            total: undefined,
-            noCache: undefined,
-            cacheRead: undefined,
-            cacheWrite: undefined,
-          },
-          outputTokens: {
-            total: undefined,
-            text: undefined,
-            reasoning: undefined,
-          },
+          inputTokens: undefined,
+          outputTokens: undefined,
+          totalTokens: undefined,
         },
       })
     } finally {
@@ -556,22 +537,11 @@ describe('DevstralLanguageModel doStream', () => {
     })
     expect(parts[6]).toEqual({
       type: 'finish',
-      finishReason: {
-        unified: 'tool-calls',
-        raw: undefined,
-      },
+      finishReason: 'tool-calls',
       usage: {
-        inputTokens: {
-          total: undefined,
-          noCache: undefined,
-          cacheRead: undefined,
-          cacheWrite: undefined,
-        },
-        outputTokens: {
-          total: undefined,
-          text: undefined,
-          reasoning: undefined,
-        },
+        inputTokens: undefined,
+        outputTokens: undefined,
+        totalTokens: undefined,
       },
     })
   })

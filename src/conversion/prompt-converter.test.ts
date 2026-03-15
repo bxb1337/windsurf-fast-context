@@ -42,7 +42,7 @@ describe('convertPrompt', () => {
     });
   });
 
-  it('multi-turn preserves ordering across mixed roles (V3 output shape)', () => {
+  it('multi-turn preserves ordering across mixed roles (V2 output shape)', () => {
     const prompt = [
       { role: 'system' as const, content: 'System instruction' },
       {
@@ -179,7 +179,7 @@ describe('convertPrompt', () => {
     ]);
   });
 
-  it('tool-result with execution-denied output includes reason', () => {
+  it('tool-result with error-text output includes denial reason', () => {
     const prompt = [
       {
         role: 'tool' as const,
@@ -188,7 +188,7 @@ describe('convertPrompt', () => {
             type: 'tool-result' as const,
             toolCallId: 'call_denied',
             toolName: 'dangerousAction',
-            output: { type: 'execution-denied' as const, reason: 'User rejected tool execution' },
+            output: { type: 'error-text' as const, value: 'User rejected tool execution' },
           },
         ],
       },
@@ -199,13 +199,13 @@ describe('convertPrompt', () => {
     expect(result).toEqual([
       {
         role: 4,
-        content: '{"type":"execution-denied","reason":"User rejected tool execution"}',
+        content: 'User rejected tool execution',
         metadata: { refCallId: 'call_denied' },
       },
     ]);
   });
 
-  it('tool-result with execution-denied output handles missing reason', () => {
+  it('tool-result with error-text output handles fallback denial text', () => {
     const prompt = [
       {
         role: 'tool' as const,
@@ -214,7 +214,7 @@ describe('convertPrompt', () => {
             type: 'tool-result' as const,
             toolCallId: 'call_denied_no_reason',
             toolName: 'someTool',
-            output: { type: 'execution-denied' as const },
+            output: { type: 'error-text' as const, value: 'Tool execution denied' },
           },
         ],
       },
@@ -225,7 +225,7 @@ describe('convertPrompt', () => {
     expect(result).toEqual([
       {
         role: 4,
-        content: '{"type":"execution-denied"}',
+        content: 'Tool execution denied',
         metadata: { refCallId: 'call_denied_no_reason' },
       },
     ]);

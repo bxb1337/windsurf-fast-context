@@ -7,7 +7,7 @@ export interface WindsurfProviderOptions {
 }
 
 /**
- * Windsurf provider interface extending AI SDK V3 ProviderV3 pattern.
+ * Windsurf provider interface extending AI SDK V2 ProviderV2 pattern.
  * The provider is callable as a function and has a languageModel method.
  */
 export interface WindsurfProvider {

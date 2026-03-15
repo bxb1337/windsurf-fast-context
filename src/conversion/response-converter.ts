@@ -13,7 +13,7 @@ export interface ToolCallPart {
   input: unknown;
 }
 
-export type LanguageModelV3Content = TextPart | ToolCallPart;
+export type LanguageModelV2Content = TextPart | ToolCallPart;
 
 const TOOL_CALL_PREFIX = '[TOOL_CALLS]';
 const ARGS_PREFIX = '[ARGS]';
@@ -28,7 +28,7 @@ interface OpenAIToolCall {
   };
 }
 
-function parseOpenAIToolCalls(responseText: string): LanguageModelV3Content[] | null {
+function parseOpenAIToolCalls(responseText: string): LanguageModelV2Content[] | null {
   if (!responseText.startsWith('TOOL_CALLS')) {
     return null;
   }
@@ -100,7 +100,7 @@ function mapToolIdToName(id: number): string {
   }
 }
 
-function pushText(parts: LanguageModelV3Content[], text: string): void {
+function pushText(parts: LanguageModelV2Content[], text: string): void {
   if (text.length > 0) {
     parts.push({ type: 'text', text });
   }
@@ -305,7 +305,7 @@ function decodeResponseText(buffer: Buffer): string {
   return pickBestExtractedText(extracted)
 }
 
-export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
+export function convertResponse(buffer: Buffer): LanguageModelV2Content[] {
   let responseText = decodeResponseText(buffer)
   responseText = responseText.replace(STOP_TOKEN, '')
 
@@ -314,7 +314,7 @@ export function convertResponse(buffer: Buffer): LanguageModelV3Content[] {
     return openaiToolCalls;
   }
   
-  const parts: LanguageModelV3Content[] = [];
+  const parts: LanguageModelV2Content[] = [];
   let cursor = 0;
   let toolCallCount = 0;
 

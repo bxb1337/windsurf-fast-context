@@ -11,8 +11,7 @@ type GeneratePart =
       type: 'tool-call'
       toolCallId: string
       toolName: string
-      input: unknown
-      toolCallType: 'function'
+      input: string
     }
 
 const itIfApiKey = process.env.WINDSURF_API_KEY ? it : it.skip
@@ -42,10 +41,12 @@ describe('integration tools', () => {
             ],
           },
         ],
-        tools: {
-          searchRepo: {
+        tools: [
+          {
+            type: 'function',
+            name: 'searchRepo',
             description: 'Searches files in a repository by query text.',
-            parameters: {
+            inputSchema: {
               type: 'object',
               properties: {
                 query: { type: 'string' },
@@ -53,7 +54,7 @@ describe('integration tools', () => {
               required: ['query'],
             },
           },
-        },
+        ],
       })
 
       expect(result.content.length).toBeGreaterThan(0)
@@ -75,10 +76,9 @@ describe('integration tools', () => {
         throw new Error('Expected at least one tool call')
       }
 
-      expect(firstToolCall.toolCallType).toBe('function')
       expect(firstToolCall.toolCallId.length).toBeGreaterThan(0)
       expect(firstToolCall.toolName.length).toBeGreaterThan(0)
-      expect(typeof firstToolCall.input).toBe('object')
+      expect(typeof firstToolCall.input).toBe('string')
     },
     90_000,
   )
