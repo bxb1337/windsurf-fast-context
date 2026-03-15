@@ -104,4 +104,28 @@ describe('convertResponse', () => {
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
     expect(result).toEqual([{ type: 'text', text: input }]);
   });
+
+  it('returns text for non-string tool name', () => {
+    const input = '[{"type":"function","function":{"name":123,"parameters":{}}}]';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: input }]);
+  });
+
+  it('returns text for non-object parameters', () => {
+    const input = '[{"type":"function","function":{"name":"search","parameters":"invalid"}}]';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: input }]);
+  });
+
+  it('returns text for empty string tool name', () => {
+    const input = '[{"type":"function","function":{"name":"","parameters":{}}}]';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: input }]);
+  });
+
+  it('returns text for array parameters', () => {
+    const input = '[{"type":"function","function":{"name":"search","parameters":["a","b"]}}]';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([{ type: 'text', text: input }]);
+  });
 });

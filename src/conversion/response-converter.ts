@@ -17,14 +17,6 @@ export type LanguageModelV2Content = TextPart | ToolCallPart;
 
 const STOP_TOKEN = '</s>';
 
-interface StrictOpenAIToolCall {
-  type: 'function';
-  function: {
-    name: string;
-    parameters?: Record<string, unknown>;
-  };
-}
-
 function parseStrictOpenAIToolCalls(responseText: string): LanguageModelV2Content[] | null {
   const trimmed = responseText.trim();
   if (!trimmed.startsWith('[')) return null;
@@ -35,12 +27,13 @@ function parseStrictOpenAIToolCalls(responseText: string): LanguageModelV2Conten
 
     const toolCalls: LanguageModelV2Content[] = [];
     for (let i = 0; i < parsed.length; i++) {
-      const item = parsed[i] as StrictOpenAIToolCall;
-      if (item.type !== 'function' || !item.function?.name) continue;
+      const item = parsed[i];
+      if (item.type !== 'function' || typeof item.function?.name !== 'string' || item.function.name.length === 0) continue;
+      if (item.function.parameters !== undefined && (typeof item.function.parameters !== 'object' || Array.isArray(item.function.parameters))) continue;
       toolCalls.push({
         type: 'tool-call',
         toolCallId: `toolcall_${i + 1}`,
-        toolName: String(item.function.name),
+        toolName: item.function.name,
         input: item.function.parameters ?? {},
       });
     }
