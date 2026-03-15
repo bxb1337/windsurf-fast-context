@@ -219,7 +219,7 @@ describe('DevstralLanguageModel doGenerate', () => {
 
       requestBodies.push(bufferFromBody(init?.body))
 
-      const payload = Buffer.from('[TOOL_CALLS]searchRepo[ARGS]{"query":"jwt manager"}', 'utf8')
+      const payload = Buffer.from('[{"type":"function","function":{"name":"searchRepo","parameters":{"query":"jwt manager"}}}]', 'utf8')
       return new Response(Uint8Array.from(connectFrameEncode(payload)), { status: 200 })
     }
 
@@ -482,7 +482,7 @@ describe('DevstralLanguageModel doStream', () => {
 
   it('stream-tool emits tool-input deltas before final tool-call and finish', async () => {
     const jwt = makeJwt(4_300_000_001, 'stream-tool')
-    const toolPayload = Buffer.from('[TOOL_CALLS]searchRepo[ARGS]{"query":"jwt manager"}', 'utf8')
+    const toolPayload = Buffer.from('[{"type":"function","function":{"name":"searchRepo","parameters":{"query":"jwt manager"}}}]', 'utf8')
     const frames = Buffer.concat([connectFrameEncode(toolPayload)])
     const fakeFetch: FetchLike = async (input) => {
       const url = String(input)

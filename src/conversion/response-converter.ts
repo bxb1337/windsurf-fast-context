@@ -15,234 +15,45 @@ export interface ToolCallPart {
 
 export type LanguageModelV2Content = TextPart | ToolCallPart;
 
-const TOOL_CALL_PREFIX = '[TOOL_CALLS]';
-const ARGS_PREFIX = '[ARGS]';
 const STOP_TOKEN = '</s>';
 
-interface OpenAIToolCall {
+interface StrictOpenAIToolCall {
   type: 'function';
   function: {
-    name: number | string;
-    description?: string;
+    name: string;
     parameters?: Record<string, unknown>;
   };
 }
 
-function parseOpenAIToolCalls(responseText: string): LanguageModelV2Content[] | null {
-  if (!responseText.startsWith('TOOL_CALLS')) {
+function parseStrictOpenAIToolCalls(responseText: string): LanguageModelV2Content[] | null {
+  const trimmed = responseText.trim();
+  if (!trimmed.startsWith('[')) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+    const toolCalls: LanguageModelV2Content[] = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const item = parsed[i] as StrictOpenAIToolCall;
+      if (item.type !== 'function' || !item.function?.name) continue;
+      toolCalls.push({
+        type: 'tool-call',
+        toolCallId: `toolcall_${i + 1}`,
+        toolName: String(item.function.name),
+        input: item.function.parameters ?? {},
+      });
+    }
+
+    return toolCalls.length > 0 ? toolCalls : null;
+  } catch {
     return null;
-  }
-
-  const jsonPart = responseText.slice('TOOL_CALLS'.length);
-  if (!jsonPart.startsWith('{')) {
-    return null;
-  }
-
-  const toolCalls: OpenAIToolCall[] = [];
-  let cursor = 0;
-
-  while (cursor < jsonPart.length) {
-    if (jsonPart[cursor] !== '{') {
-      cursor++;
-      continue;
-    }
-
-    const endResult = parseBalancedEnd(jsonPart, cursor);
-    if (endResult == null) {
-      break;
-    }
-
-    const jsonStr = jsonPart.slice(cursor, endResult);
-    cursor = endResult;
-
-    if (jsonStr === '{}') {
-      continue;
-    }
-
-    try {
-      const parsed = JSON.parse(jsonStr) as OpenAIToolCall;
-      if (parsed.type === 'function' && parsed.function) {
-        toolCalls.push(parsed);
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  if (toolCalls.length === 0) {
-    return null;
-  }
-
-  return toolCalls.map((call, index) => {
-    const toolId = call.function.name;
-    const toolName = typeof toolId === 'number' ? mapToolIdToName(toolId) : String(toolId);
-    const args = call.function.parameters ?? {};
-
-    return {
-      type: 'tool-call' as const,
-      toolCallId: `toolcall_${index + 1}`,
-      toolName,
-      input: args,
-    };
-  });
-}
-
-function mapToolIdToName(id: number): string {
-  switch (id) {
-    case 1:
-      return 'read';
-    case 2:
-      return 'glob';
-    case 3:
-      return 'grep';
-    default:
-      return `tool_${id}`;
   }
 }
 
 function pushText(parts: LanguageModelV2Content[], text: string): void {
   if (text.length > 0) {
     parts.push({ type: 'text', text });
-  }
-}
-
-function parseStringEnd(value: string, startIndex: number): number | null {
-  let index = startIndex + 1;
-  let escaping = false;
-
-  while (index < value.length) {
-    const char = value[index];
-    if (escaping) {
-      escaping = false;
-    } else if (char === '\\') {
-      escaping = true;
-    } else if (char === '"') {
-      return index + 1;
-    }
-
-    index += 1;
-  }
-
-  return null;
-}
-
-function parseBalancedEnd(value: string, startIndex: number): number | null {
-  const stack: string[] = [value[startIndex] === '{' ? '}' : ']'];
-  let index = startIndex + 1;
-  let inString = false;
-  let escaping = false;
-
-  while (index < value.length) {
-    const char = value[index];
-
-    if (inString) {
-      if (escaping) {
-        escaping = false;
-      } else if (char === '\\') {
-        escaping = true;
-      } else if (char === '"') {
-        inString = false;
-      }
-
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      inString = true;
-      index += 1;
-      continue;
-    }
-
-    if (char === '{') {
-      stack.push('}');
-      index += 1;
-      continue;
-    }
-
-    if (char === '[') {
-      stack.push(']');
-      index += 1;
-      continue;
-    }
-
-    if (char === '}' || char === ']') {
-      const expected = stack[stack.length - 1];
-      if (expected !== char) {
-        return null;
-      }
-
-      stack.pop();
-      index += 1;
-
-      if (stack.length === 0) {
-        return index;
-      }
-
-      continue;
-    }
-
-    index += 1;
-  }
-
-  return null;
-}
-
-function parsePrimitiveEnd(value: string, startIndex: number): number {
-  let index = startIndex;
-
-  while (index < value.length) {
-    const char = value[index];
-    if (char === ' ' || char === '\n' || char === '\r' || char === '\t') {
-      break;
-    }
-
-    index += 1;
-  }
-
-  return index;
-}
-
-function parseJsonValue(value: string, startIndex: number): { parsed: unknown; endIndex: number } | null {
-  let jsonStart = startIndex;
-
-  while (jsonStart < value.length) {
-    const char = value[jsonStart];
-    if (char !== ' ' && char !== '\n' && char !== '\r' && char !== '\t') {
-      break;
-    }
-
-    jsonStart += 1;
-  }
-
-  if (jsonStart >= value.length) {
-    return null;
-  }
-
-  const firstChar = value[jsonStart];
-  let endIndex: number | null;
-
-  if (firstChar === '{' || firstChar === '[') {
-    endIndex = parseBalancedEnd(value, jsonStart);
-  } else if (firstChar === '"') {
-    endIndex = parseStringEnd(value, jsonStart);
-  } else {
-    endIndex = parsePrimitiveEnd(value, jsonStart);
-  }
-
-  if (endIndex == null || endIndex <= jsonStart) {
-    return null;
-  }
-
-  const rawJson = value.slice(jsonStart, endIndex);
-
-  try {
-    return {
-      parsed: JSON.parse(rawJson),
-      endIndex,
-    };
-  } catch {
-    return null;
   }
 }
 
@@ -278,15 +89,10 @@ function isLikelyMetadata(value: string): boolean {
 }
 
 function pickBestExtractedText(values: string[]): string {
-  const markerValues = values.filter((value) => value.includes(TOOL_CALL_PREFIX) || value.includes(ARGS_PREFIX))
-  if (markerValues.length > 0) {
-    return markerValues.join('')
-  }
+  const nonMetadata = values.filter((value) => !isLikelyMetadata(value));
+  const candidates = nonMetadata.length > 0 ? nonMetadata : values;
 
-  const nonMetadata = values.filter((value) => !isLikelyMetadata(value))
-  const candidates = nonMetadata.length > 0 ? nonMetadata : values
-
-  return candidates.reduce((best, current) => (current.length > best.length ? current : best), candidates[0] ?? '')
+  return candidates.reduce((best, current) => (current.length > best.length ? current : best), candidates[0] ?? '');
 }
 
 function decodeResponseText(buffer: Buffer): string {
@@ -306,55 +112,13 @@ function decodeResponseText(buffer: Buffer): string {
 }
 
 export function convertResponse(buffer: Buffer): LanguageModelV2Content[] {
-  let responseText = decodeResponseText(buffer)
-  responseText = responseText.replace(STOP_TOKEN, '')
+  let responseText = decodeResponseText(buffer);
+  responseText = responseText.replace(STOP_TOKEN, '');
 
-  const openaiToolCalls = parseOpenAIToolCalls(responseText);
-  if (openaiToolCalls) {
-    return openaiToolCalls;
-  }
-  
+  const strictToolCalls = parseStrictOpenAIToolCalls(responseText);
+  if (strictToolCalls) return strictToolCalls;
+
   const parts: LanguageModelV2Content[] = [];
-  let cursor = 0;
-  let toolCallCount = 0;
-
-  while (cursor < responseText.length) {
-    const markerStart = responseText.indexOf(TOOL_CALL_PREFIX, cursor);
-    if (markerStart === -1) {
-      pushText(parts, responseText.slice(cursor));
-      break;
-    }
-
-    pushText(parts, responseText.slice(cursor, markerStart));
-
-    const toolNameStart = markerStart + TOOL_CALL_PREFIX.length;
-    const argsStart = responseText.indexOf(ARGS_PREFIX, toolNameStart);
-    if (argsStart === -1) {
-      pushText(parts, responseText.slice(markerStart));
-      break;
-    }
-
-    const toolName = responseText.slice(toolNameStart, argsStart);
-    const parsedArgs = parseJsonValue(responseText, argsStart + ARGS_PREFIX.length);
-
-    if (parsedArgs == null) {
-      const nextMarker = responseText.indexOf(TOOL_CALL_PREFIX, markerStart + TOOL_CALL_PREFIX.length);
-      const malformedEnd = nextMarker === -1 ? responseText.length : nextMarker;
-      pushText(parts, responseText.slice(markerStart, malformedEnd));
-      cursor = malformedEnd;
-      continue;
-    }
-
-    toolCallCount += 1;
-    parts.push({
-      type: 'tool-call',
-      toolCallId: `toolcall_${toolCallCount}`,
-      toolName,
-      input: parsedArgs.parsed,
-    });
-
-    cursor = parsedArgs.endIndex;
-  }
-
+  pushText(parts, responseText);
   return parts;
 }
