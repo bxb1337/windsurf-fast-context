@@ -49,7 +49,7 @@ describe('convertResponse', () => {
     expect(result).toEqual([{ type: 'text', text: 'Hello world' }]);
   });
 
-  // NEW: Strict OpenAI array format tests (TDD RED phase - these should FAIL)
+  // Strict OpenAI array format tests
   it('parses strict OpenAI array with single tool call', () => {
     const input = '[{"type":"function","function":{"name":"search","parameters":{"q":"test"}}}]';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));

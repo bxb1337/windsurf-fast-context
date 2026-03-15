@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { LanguageModelV2FunctionTool } from '@ai-sdk/provider'
 
 import { extractStrings } from '../protocol/protobuf.js'
 import { connectFrameDecode, connectFrameEncode } from '../protocol/connect-frame.js'
@@ -356,6 +357,104 @@ describe('DevstralLanguageModel doGenerate', () => {
 
     const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
     expect(extractToolsPayload(strings)).toBeUndefined()
+  })
+
+  it('injects tool format instruction into request when tools are present', async () => {
+    const requestBodies: Buffer[] = []
+    const jwt = makeJwt(4_200_000_100, 'instruction')
+    const fakeFetch: FetchLike = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith('/GetUserJwt')) {
+        return new Response(Uint8Array.from(Buffer.from(jwt, 'utf8')), { status: 200 })
+      }
+
+      requestBodies.push(bufferFromBody(init?.body))
+      return new Response(Uint8Array.from(connectFrameEncode(Buffer.from('ok', 'utf8'))), { status: 200 })
+    }
+
+    const model = new DevstralLanguageModel({ apiKey: 'tools-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Search for auth.' }] }],
+      tools: [
+        {
+          type: 'function',
+          name: 'searchRepo',
+          description: 'Search repository files',
+          inputSchema: {
+            type: 'object',
+            properties: { query: { type: 'string' } },
+            required: ['query'],
+          },
+        },
+      ],
+    })
+
+    const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
+    const combined = strings.join('\n')
+
+    expect(combined).toContain('When you need to call tools')
+  })
+
+  it('does not inject tool format instruction when no tools provided', async () => {
+    const requestBodies: Buffer[] = []
+    const jwt = makeJwt(4_200_000_101, 'no-instruction')
+    const fakeFetch: FetchLike = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith('/GetUserJwt')) {
+        return new Response(Uint8Array.from(Buffer.from(jwt, 'utf8')), { status: 200 })
+      }
+
+      requestBodies.push(bufferFromBody(init?.body))
+      return new Response(Uint8Array.from(connectFrameEncode(Buffer.from('ok', 'utf8'))), { status: 200 })
+    }
+
+    const model = new DevstralLanguageModel({ apiKey: 'tools-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Find auth logic.' }] }],
+    })
+
+    const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
+    const combined = strings.join('\n')
+
+    expect(combined).not.toContain('When you need to call tools')
+  })
+
+  it('does not inject tool format instruction when only provider-defined tools', async () => {
+    const requestBodies: Buffer[] = []
+    const jwt = makeJwt(4_200_000_102, 'provider-only')
+    const fakeFetch: FetchLike = async (input, init) => {
+      const url = String(input)
+
+      if (url.endsWith('/GetUserJwt')) {
+        return new Response(Uint8Array.from(Buffer.from(jwt, 'utf8')), { status: 200 })
+      }
+
+      requestBodies.push(bufferFromBody(init?.body))
+      return new Response(Uint8Array.from(connectFrameEncode(Buffer.from('ok', 'utf8'))), { status: 200 })
+    }
+
+    const model = new DevstralLanguageModel({ apiKey: 'tools-key', fetch: fakeFetch, baseURL: 'https://windsurf.test' })
+
+    await model.doGenerate({
+      prompt: [{ role: 'user', content: [{ type: 'text', text: 'Use provider tools.' }] }],
+      tools: [
+        {
+          type: 'provider-defined',
+          id: 'some-provider-tool',
+          name: 'providerTool',
+          args: {},
+        } as unknown as LanguageModelV2FunctionTool,
+      ],
+    })
+
+    const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
+    const combined = strings.join('\n')
+
+    expect(combined).not.toContain('When you need to call tools')
   })
 })
 
