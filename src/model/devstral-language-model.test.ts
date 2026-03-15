@@ -397,7 +397,7 @@ describe('DevstralLanguageModel doGenerate', () => {
     expect(combined).toContain('When you need to call tools')
   })
 
-  it('does not inject tool format instruction when no tools provided', async () => {
+  it('always injects tool format instruction even without tools', async () => {
     const requestBodies: Buffer[] = []
     const jwt = makeJwt(4_200_000_101, 'no-instruction')
     const fakeFetch: FetchLike = async (input, init) => {
@@ -420,10 +420,10 @@ describe('DevstralLanguageModel doGenerate', () => {
     const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
     const combined = strings.join('\n')
 
-    expect(combined).not.toContain('When you need to call tools')
+    expect(combined).toContain('When you need to call tools')
   })
 
-  it('does not inject tool format instruction when only provider-defined tools', async () => {
+  it('always injects tool format instruction even with only provider-defined tools', async () => {
     const requestBodies: Buffer[] = []
     const jwt = makeJwt(4_200_000_102, 'provider-only')
     const fakeFetch: FetchLike = async (input, init) => {
@@ -454,7 +454,7 @@ describe('DevstralLanguageModel doGenerate', () => {
     const strings = extractStrings(decodeRequestPayload(requestBodies[0] ?? Buffer.alloc(0)))
     const combined = strings.join('\n')
 
-    expect(combined).not.toContain('When you need to call tools')
+    expect(combined).toContain('When you need to call tools')
   })
 })
 

@@ -31,13 +31,13 @@ const WS_LS_VER = process.env.WS_LS_VER ?? '1.9544.35'
 const SENTRY_PUBLIC_KEY = 'b813f73488da69eedec534dba1029111'
 const CONNECT_USER_AGENT = 'connect-go/1.18.1 (go1.25.5)'
 
-const TOOL_FORMAT_INSTRUCTION = `When you need to call tools, output them in the following format:
-[TOOL_CALLS]tool_name[ARGS]{"arg1": "value1", "arg2": "value2"}
+const TOOL_FORMAT_INSTRUCTION = `When you need to call tools, you must format your response as a JSON array of tool calls following the OpenAI function calling format. Each tool call must be an object with "type" set to "function" and a "function" object containing "name" (string matching one of the provided tool names) and "parameters" (object with the tool's arguments). Output ONLY the JSON array, no surrounding text.
 
-For multiple tool calls in sequence:
-[TOOL_CALLS]first_tool[ARGS]{"param": "value"}[TOOL_CALLS]second_tool[ARGS]{"param": "value"}
+Example format:
+[{"type": "function", "function": {"name": "tool_name", "parameters": {"arg1": "value1"}}}]
 
-The tool name must match one of the provided tool names exactly. The arguments must be a valid JSON object.`
+For multiple tool calls:
+[{"type": "function", "function": {"name": "tool1", "parameters": {"arg1": "value1"}}}, {"type": "function", "function": {"name": "tool2", "parameters": {"arg2": "value2"}}}]`
 
 export interface DevstralLanguageModelOptions extends WindsurfProviderOptions {
   modelId?: string
@@ -366,9 +366,7 @@ function buildGenerateRequest(input: {
   request.writeMessage(1, buildMetadata(input.apiKey, input.jwt))
 
   const functionTools = input.tools?.filter(isFunctionTool) ?? []
-  const messages = functionTools.length > 0
-    ? [{ role: 5 as const, content: TOOL_FORMAT_INSTRUCTION }, ...input.messages]
-    : input.messages
+  const messages = [{ role: 5 as const, content: TOOL_FORMAT_INSTRUCTION }, ...input.messages]
 
   for (const message of messages) {
     request.writeMessage(2, buildMessage(message))
