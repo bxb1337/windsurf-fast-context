@@ -49,17 +49,35 @@ describe('convertResponse', () => {
     expect(result).toEqual([{ type: 'text', text: 'Hello world' }]);
   });
 
-  // Strict OpenAI array format tests
-  it('parses strict OpenAI array with single tool call', () => {
-    const input = '[{"type":"function","function":{"name":"search","parameters":{"q":"test"}}}]';
+  // Native Windsurf marker format tests
+  it('parses native marker format [TOOL_CALLS]name[ARGS]{json}', () => {
+    const input = '[TOOL_CALLS]search[ARGS]{"q":"test"}';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
     expect(result).toEqual([
       { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'search', input: { q: 'test' } }
     ]);
   });
 
-  it('parses strict OpenAI array with multiple tool calls', () => {
-    const input = '[{"type":"function","function":{"name":"read","parameters":{"path":"/a"}}},{"type":"function","function":{"name":"grep","parameters":{"pattern":"foo"}}}]';
+  it('parses marker format with text before tool call', () => {
+    const input = 'Some text before[TOOL_CALLS]read[ARGS]{"path":"/foo"}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      { type: 'text', text: 'Some text before' },
+      { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'read', input: { path: '/foo' } }
+    ]);
+  });
+
+  it('parses marker format with text after tool call', () => {
+    const input = '[TOOL_CALLS]grep[ARGS]{"pattern":"foo"}Some text after';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'grep', input: { pattern: 'foo' } },
+      { type: 'text', text: 'Some text after' }
+    ]);
+  });
+
+  it('parses multiple tool calls in marker format', () => {
+    const input = '[TOOL_CALLS]read[ARGS]{"path":"/a"}[TOOL_CALLS]grep[ARGS]{"pattern":"foo"}';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
     expect(result).toEqual([
       { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'read', input: { path: '/a' } },
@@ -67,24 +85,36 @@ describe('convertResponse', () => {
     ]);
   });
 
-  it('parses strict OpenAI array with empty parameters', () => {
-    const input = '[{"type":"function","function":{"name":"list","parameters":{}}}]';
+  it('parses TOOL_CALLS format with numeric tool id', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":3,"parameters":{"pattern":"test"}}}';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
     expect(result).toEqual([
-      { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'list', input: {} }
+      { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'grep', input: { pattern: 'test' } }
     ]);
   });
 
-  it('returns text for old marker format (no backward compat)', () => {
-    const input = '[TOOL_CALLS]search[ARGS]{"q":"test"}';
+  it('maps tool id 1 to read', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":1,"parameters":{"path":"/file"}}}';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: '[TOOL_CALLS]search[ARGS]{"q":"test"}' }]);
+    expect(result).toEqual([
+      { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'read', input: { path: '/file' } }
+    ]);
   });
 
-  it('returns text for old TOOL_CALLS format (no backward compat)', () => {
-    const input = 'TOOL_CALLS{"type":"function","function":{"name":3,"parameters":{"q":"test"}}}{}';
+  it('maps tool id 2 to glob', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":2,"parameters":{"pattern":"*.ts"}}}';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: input }]);
+    expect(result).toEqual([
+      { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'glob', input: { pattern: '*.ts' } }
+    ]);
+  });
+
+  it('maps unknown tool id to tool_N', () => {
+    const input = 'TOOL_CALLS{"type":"function","function":{"name":99,"parameters":{}}}';
+    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
+    expect(result).toEqual([
+      { type: 'tool-call', toolCallId: 'toolcall_1', toolName: 'tool_99', input: {} }
+    ]);
   });
 
   it('returns text for non-array JSON', () => {
@@ -101,30 +131,6 @@ describe('convertResponse', () => {
 
   it('returns text for malformed JSON array', () => {
     const input = '[{"type":"function","function":{"name":"search","parameters":';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: input }]);
-  });
-
-  it('returns text for non-string tool name', () => {
-    const input = '[{"type":"function","function":{"name":123,"parameters":{}}}]';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: input }]);
-  });
-
-  it('returns text for non-object parameters', () => {
-    const input = '[{"type":"function","function":{"name":"search","parameters":"invalid"}}]';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: input }]);
-  });
-
-  it('returns text for empty string tool name', () => {
-    const input = '[{"type":"function","function":{"name":"","parameters":{}}}]';
-    const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
-    expect(result).toEqual([{ type: 'text', text: input }]);
-  });
-
-  it('returns text for array parameters', () => {
-    const input = '[{"type":"function","function":{"name":"search","parameters":["a","b"]}}]';
     const result: TestContent[] = convertResponse(Buffer.from(input, 'utf8'));
     expect(result).toEqual([{ type: 'text', text: input }]);
   });
